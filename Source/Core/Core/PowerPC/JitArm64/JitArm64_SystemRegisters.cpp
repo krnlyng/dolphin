@@ -94,6 +94,18 @@ void JitArm64::mtmsr(UGeckoInstruction inst)
   gpr.BindToRegister(inst.RS, true);
   STR(IndexType::Unsigned, gpr.R(inst.RS), PPC_REG, PPCSTATE_OFF(msr));
 
+  auto& memory = m_system.GetMemory();
+
+  ARM64Reg WA = gpr.GetReg();
+  ARM64Reg XA = EncodeRegTo64(WA);
+  TST(gpr.R(inst.RS), LogicalImm(1 << (31 - 27), 32));
+  MOVP2R(MEM_REG, jo.fastmem_arena ? memory.GetLogicalBase() : memory.GetLogicalPageMappingsBase());
+  MOVP2R(XA,
+         jo.fastmem_arena ? memory.GetPhysicalBase() : memory.GetPhysicalPageMappingsBase());
+  CSEL(MEM_REG, MEM_REG, XA, CCFlags::CC_NEQ);
+  STR(IndexType::Unsigned, MEM_REG, PPC_REG, PPCSTATE_OFF(mem_ptr));
+  gpr.Unlock(WA);
+
   gpr.Flush(FlushMode::All, ARM64Reg::INVALID_REG);
   fpr.Flush(FlushMode::All, ARM64Reg::INVALID_REG);
 

@@ -100,14 +100,9 @@ void JitArm64::GenerateAsm()
   if (assembly_dispatcher)
   {
     ARM64Reg msr = ARM64Reg::W27;
-
-    // set the mem_base based on MSR flags
     LDR(IndexType::Unsigned, msr, PPC_REG, PPCSTATE_OFF(msr));
-    TST(msr, LogicalImm(1 << (31 - 27), 32));
-    MOVP2R(MEM_REG, jo.fastmem_arena ? memory.GetLogicalBase() : memory.GetLogicalPageMappingsBase());
-    MOVP2R(ARM64Reg::X25,
-           jo.fastmem_arena ? memory.GetPhysicalBase() : memory.GetPhysicalPageMappingsBase());
-    CSEL(MEM_REG, MEM_REG, ARM64Reg::X25, CCFlags::CC_NEQ);
+
+    UpdateMembase();
 
     if (GetBlockCache()->GetFastBlockMap())
     {
@@ -178,13 +173,7 @@ void JitArm64::GenerateAsm()
 
   FixupBranch no_block_available = CBZ(ARM64Reg::X0);
 
-  // set the mem_base based on MSR flags and jump to next block.
-  LDR(IndexType::Unsigned, ARM64Reg::W27, PPC_REG, PPCSTATE_OFF(msr));
-  TST(ARM64Reg::W27, LogicalImm(1 << (31 - 27), 32));
-  MOVP2R(MEM_REG, jo.fastmem_arena ? memory.GetLogicalBase() : memory.GetLogicalPageMappingsBase());
-  MOVP2R(ARM64Reg::X25,
-         jo.fastmem_arena ? memory.GetPhysicalBase() : memory.GetPhysicalPageMappingsBase());
-  CSEL(MEM_REG, MEM_REG, ARM64Reg::X25, CCFlags::CC_NEQ);
+  UpdateMembase();
   BR(ARM64Reg::X0);
 
   // Call JIT
@@ -238,6 +227,11 @@ void JitArm64::GenerateAsm()
   GenerateCommonAsm();
 
   FlushIcache();
+}
+
+void JitArm64::UpdateMembase()
+{
+  LDR(IndexType::Unsigned, MEM_REG, PPC_REG, PPCSTATE_OFF(mem_ptr));
 }
 
 void JitArm64::GenerateCommonAsm()

@@ -11,6 +11,7 @@
 #include "Core/PowerPC/JitArm64/JitArm64_RegCache.h"
 #include "Core/PowerPC/PPCTables.h"
 #include "Core/PowerPC/PowerPC.h"
+#include "Core/System.h"
 
 using namespace Arm64Gen;
 
@@ -63,6 +64,18 @@ void JitArm64::rfi(UGeckoInstruction inst)
   ORR(WA, WA, WC);                        // rB = Masked MSR OR masked SRR1
 
   STR(IndexType::Unsigned, WA, PPC_REG, PPCSTATE_OFF(msr));  // STR rB in to rA
+
+  auto& memory = m_system.GetMemory();
+
+  ARM64Reg WD = gpr.GetReg();
+  ARM64Reg XD = EncodeRegTo64(WD);
+  TST(WA, LogicalImm(1 << (31 - 27), 32));
+  MOVP2R(MEM_REG, jo.fastmem_arena ? memory.GetLogicalBase() : memory.GetLogicalPageMappingsBase());
+  MOVP2R(XD,
+         jo.fastmem_arena ? memory.GetPhysicalBase() : memory.GetPhysicalPageMappingsBase());
+  CSEL(MEM_REG, MEM_REG, XD, CCFlags::CC_NEQ);
+  STR(IndexType::Unsigned, MEM_REG, PPC_REG, PPCSTATE_OFF(mem_ptr));
+  gpr.Unlock(WD);
 
   LDR(IndexType::Unsigned, WA, PPC_REG, PPCSTATE_OFF_SPR(SPR_SRR0));
   gpr.Unlock(WB, WC);

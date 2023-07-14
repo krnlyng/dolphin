@@ -12,6 +12,7 @@
 #include "Core/PowerPC/Jit64Common/Jit64PowerPCState.h"
 #include "Core/PowerPC/PPCAnalyst.h"
 #include "Core/PowerPC/PowerPC.h"
+#include "Core/System.h"
 
 // The branches are known good, or at least reasonably good.
 // No need for a disable-mechanism.
@@ -54,6 +55,14 @@ void Jit64::rfi(UGeckoInstruction inst)
   MOV(32, R(RSCRATCH), PPCSTATE_SRR1);
   AND(32, R(RSCRATCH), Imm32(mask & clearMSR13));
   OR(32, PPCSTATE(msr), R(RSCRATCH));
+
+  auto& memory = m_system.GetMemory();
+  TEST(32, R(RSCRATCH), Imm32(1 << (31 - 27)));
+  MOV(64, R(RMEM), ImmPtr(memory.GetLogicalBase()));
+  MOV(64, R(RSCRATCH2), ImmPtr(memory.GetPhysicalBase()));
+  CMOVcc(64, RMEM, R(RSCRATCH2), CC_Z);
+  MOV(64, PPCSTATE(mem_ptr), R(RMEM));
+
   // NPC = SRR0;
   MOV(32, R(RSCRATCH), PPCSTATE_SRR0);
   WriteRfiExitDestInRSCRATCH();

@@ -71,6 +71,8 @@ void JitArm64::Init()
   GenerateAsm();
 
   ResetFreeMemoryRanges();
+
+  m_system.GetJitInterface().UpdateMembase();
 }
 
 void JitArm64::SetBlockLinkingEnabled(bool enabled)
@@ -127,8 +129,8 @@ bool JitArm64::HandleFault(uintptr_t access_address, SContext* ctx)
       {
         ERROR_LOG_FMT(DYNA_REC,
                       "JitArm64 address calculation overflowed. This should never happen! "
-                      "PC {:#018x}, access address {:#018x}, memory base {:#018x}, MSR.DR {}",
-                      ctx->CTX_PC, access_address, memory_base, m_ppc_state.msr.DR);
+                      "PC {:#018x}, access address {:#018x}, memory base {:#018x}, MSR.DR {}, memptr {:#018x}, pbase {:#018x}, lbase {:#018x}",
+                      ctx->CTX_PC, access_address, memory_base, m_ppc_state.msr.DR, (u64)m_ppc_state.mem_ptr, (u64)memory.GetPhysicalBase(), (u64)memory.GetLogicalBase());
       }
       else
       {
@@ -523,6 +525,7 @@ void JitArm64::WriteExceptionExit(ARM64Reg dest, bool only_external, bool always
   else
     MOVP2R(EncodeRegTo64(DISPATCHER_PC), &PowerPC::CheckExceptionsFromJIT);
   BLR(EncodeRegTo64(DISPATCHER_PC));
+  UpdateMembase();
 
   LDR(IndexType::Unsigned, DISPATCHER_PC, PPC_REG, PPCSTATE_OFF(npc));
 
@@ -747,6 +750,7 @@ void JitArm64::Jit(u32 em_address, bool clear_cache_and_retry_on_failure)
     m_ppc_state.npc = nextPC;
     m_ppc_state.Exceptions |= EXCEPTION_ISI;
     m_system.GetPowerPC().CheckExceptions();
+    m_system.GetJitInterface().UpdateMembase();
     WARN_LOG_FMT(POWERPC, "ISI exception at {:#010x}", nextPC);
     return;
   }

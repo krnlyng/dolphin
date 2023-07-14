@@ -295,6 +295,7 @@ void Jit64::Init()
   EnableOptimization();
 
   ResetFreeMemoryRanges();
+  m_system.GetJitInterface().UpdateMembase();
 }
 
 void Jit64::ClearCache()
@@ -489,6 +490,11 @@ void Jit64::FakeBLCall(u32 after)
   SetJumpTarget(skip_exit);
 }
 
+void Jit64::UpdateMembase()
+{
+  MOV(64, R(RMEM), PPCSTATE(mem_ptr));
+}
+
 void Jit64::WriteExit(u32 destination, bool bl, u32 after)
 {
   if (!m_enable_blr_optimization)
@@ -598,6 +604,7 @@ void Jit64::WriteRfiExitDestInRSCRATCH()
   ABI_PushRegistersAndAdjustStack({}, 0);
   ABI_CallFunctionP(PowerPC::CheckExceptionsFromJIT, &m_system.GetPowerPC());
   ABI_PopRegistersAndAdjustStack({}, 0);
+  UpdateMembase();
   SUB(32, PPCSTATE(downcount), Imm32(js.downcountAmount));
   JMP(asm_routines.dispatcher, Jump::Near);
 }
@@ -619,6 +626,7 @@ void Jit64::WriteExceptionExit()
   ABI_PushRegistersAndAdjustStack({}, 0);
   ABI_CallFunctionP(PowerPC::CheckExceptionsFromJIT, &m_system.GetPowerPC());
   ABI_PopRegistersAndAdjustStack({}, 0);
+  UpdateMembase();
   SUB(32, PPCSTATE(downcount), Imm32(js.downcountAmount));
   JMP(asm_routines.dispatcher, Jump::Near);
 }
@@ -631,6 +639,7 @@ void Jit64::WriteExternalExceptionExit()
   ABI_PushRegistersAndAdjustStack({}, 0);
   ABI_CallFunctionP(PowerPC::CheckExternalExceptionsFromJIT, &m_system.GetPowerPC());
   ABI_PopRegistersAndAdjustStack({}, 0);
+  UpdateMembase();
   SUB(32, PPCSTATE(downcount), Imm32(js.downcountAmount));
   JMP(asm_routines.dispatcher, Jump::Near);
 }
@@ -744,6 +753,7 @@ void Jit64::Jit(u32 em_address, bool clear_cache_and_retry_on_failure)
     m_ppc_state.npc = nextPC;
     m_ppc_state.Exceptions |= EXCEPTION_ISI;
     m_system.GetPowerPC().CheckExceptions();
+    m_system.GetJitInterface().UpdateMembase();
     WARN_LOG_FMT(POWERPC, "ISI exception at {:#010x}", nextPC);
     return;
   }

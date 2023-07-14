@@ -438,7 +438,15 @@ void Jit64::mtmsr(UGeckoInstruction inst)
     RCOpArg Rs = gpr.BindOrImm(inst.RS, RCMode::Read);
     RegCache::Realize(Rs);
     MOV(32, PPCSTATE(msr), Rs);
+
+    auto& memory = m_system.GetMemory();
+    TEST(32, PPCSTATE(msr), Imm32(1 << (31 - 27)));
+    MOV(64, R(RMEM), ImmPtr(memory.GetLogicalBase()));
+    MOV(64, R(RSCRATCH2), ImmPtr(memory.GetPhysicalBase()));
+    CMOVcc(64, RMEM, R(RSCRATCH2), CC_Z);
+    MOV(64, PPCSTATE(mem_ptr), R(RMEM));
   }
+
   gpr.Flush();
   fpr.Flush();
 
