@@ -167,11 +167,10 @@ void Jit64AsmRoutineManager::Generate()
     // Success; branch to the block we found.
     // Switch to the correct memory base, in case MSR.DR has changed.
     TEST(32, PPCSTATE(msr), Imm32(1 << (31 - 27)));
-    FixupBranch physmem = J_CC(CC_Z);
     MOV(64, R(RMEM), ImmPtr(memory.GetLogicalBase()));
-    JMPptr(MDisp(RSCRATCH, static_cast<s32>(offsetof(JitBlockData, normalEntry))));
-    SetJumpTarget(physmem);
-    MOV(64, R(RMEM), ImmPtr(memory.GetPhysicalBase()));
+    MOV(64, R(RSCRATCH2), ImmPtr(memory.GetPhysicalBase()));
+    CMOVcc(64, RMEM, R(RSCRATCH2), CC_Z);
+
     JMPptr(MDisp(RSCRATCH, static_cast<s32>(offsetof(JitBlockData, normalEntry))));
 
     SetJumpTarget(not_found);
@@ -191,11 +190,9 @@ void Jit64AsmRoutineManager::Generate()
 
   // Switch to the correct memory base, in case MSR.DR has changed.
   TEST(32, PPCSTATE(msr), Imm32(1 << (31 - 27)));
-  FixupBranch physmem = J_CC(CC_Z);
   MOV(64, R(RMEM), ImmPtr(memory.GetLogicalBase()));
-  JMPptr(R(ABI_RETURN));
-  SetJumpTarget(physmem);
-  MOV(64, R(RMEM), ImmPtr(memory.GetPhysicalBase()));
+  MOV(64, R(RSCRATCH2), ImmPtr(memory.GetPhysicalBase()));
+  CMOVcc(64, RMEM, R(RSCRATCH2), CC_Z);
   JMPptr(R(ABI_RETURN));
 
   SetJumpTarget(no_block_available);

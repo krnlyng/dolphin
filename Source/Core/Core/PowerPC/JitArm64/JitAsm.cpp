@@ -100,15 +100,12 @@ void JitArm64::GenerateAsm()
   if (assembly_dispatcher)
   {
     // set the mem_base based on MSR flags
-    LDR(IndexType::Unsigned, ARM64Reg::W28, PPC_REG, PPCSTATE_OFF(msr));
-    FixupBranch physmem = TBNZ(ARM64Reg::W28, 31 - 27);
-    MOVP2R(MEM_REG,
+    LDR(IndexType::Unsigned, ARM64Reg::W27, PPC_REG, PPCSTATE_OFF(msr));
+    TST(ARM64Reg::W27, LogicalImm(1 << (31 - 27), 32));
+    MOVP2R(MEM_REG, jo.fastmem_arena ? memory.GetLogicalBase() : memory.GetLogicalPageMappingsBase());
+    MOVP2R(ARM64Reg::X25,
            jo.fastmem_arena ? memory.GetPhysicalBase() : memory.GetPhysicalPageMappingsBase());
-    FixupBranch membaseend = B();
-    SetJumpTarget(physmem);
-    MOVP2R(MEM_REG,
-           jo.fastmem_arena ? memory.GetLogicalBase() : memory.GetLogicalPageMappingsBase());
-    SetJumpTarget(membaseend);
+    CSEL(MEM_REG, MEM_REG, ARM64Reg::X25, CCFlags::CC_NEQ);
 
     if (GetBlockCache()->GetFastBlockMap())
     {
@@ -182,13 +179,12 @@ void JitArm64::GenerateAsm()
   FixupBranch no_block_available = CBZ(ARM64Reg::X0);
 
   // set the mem_base based on MSR flags and jump to next block.
-  LDR(IndexType::Unsigned, ARM64Reg::W28, PPC_REG, PPCSTATE_OFF(msr));
-  FixupBranch physmem = TBNZ(ARM64Reg::W28, 31 - 27);
-  MOVP2R(MEM_REG,
-         jo.fastmem_arena ? memory.GetPhysicalBase() : memory.GetPhysicalPageMappingsBase());
-  BR(ARM64Reg::X0);
-  SetJumpTarget(physmem);
+  LDR(IndexType::Unsigned, ARM64Reg::W27, PPC_REG, PPCSTATE_OFF(msr));
+  TST(ARM64Reg::W27, LogicalImm(1 << (31 - 27), 32));
   MOVP2R(MEM_REG, jo.fastmem_arena ? memory.GetLogicalBase() : memory.GetLogicalPageMappingsBase());
+  MOVP2R(ARM64Reg::X25,
+         jo.fastmem_arena ? memory.GetPhysicalBase() : memory.GetPhysicalPageMappingsBase());
+  CSEL(MEM_REG, MEM_REG, ARM64Reg::X25, CCFlags::CC_NEQ);
   BR(ARM64Reg::X0);
 
   // Call JIT
