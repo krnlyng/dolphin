@@ -166,7 +166,7 @@ void Jit64AsmRoutineManager::Generate()
 
     // Success; branch to the block we found.
     // Switch to the correct memory base, in case MSR.DR has changed.
-    TEST(32, PPCSTATE(msr), Imm32(1 << (31 - 27)));
+    TEST(32, R(RSCRATCH2), Imm32(1 << (31 - 27)));
     MOV(64, R(RMEM), ImmPtr(memory.GetLogicalBase()));
     MOV(64, R(RSCRATCH2), ImmPtr(memory.GetPhysicalBase()));
     CMOVcc(64, RMEM, R(RSCRATCH2), CC_Z);

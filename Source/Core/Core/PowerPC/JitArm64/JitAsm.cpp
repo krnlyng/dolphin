@@ -99,9 +99,11 @@ void JitArm64::GenerateAsm()
 
   if (assembly_dispatcher)
   {
+    ARM64Reg msr = ARM64Reg::W27;
+
     // set the mem_base based on MSR flags
-    LDR(IndexType::Unsigned, ARM64Reg::W27, PPC_REG, PPCSTATE_OFF(msr));
-    TST(ARM64Reg::W27, LogicalImm(1 << (31 - 27), 32));
+    LDR(IndexType::Unsigned, msr, PPC_REG, PPCSTATE_OFF(msr));
+    TST(msr, LogicalImm(1 << (31 - 27), 32));
     MOVP2R(MEM_REG, jo.fastmem_arena ? memory.GetLogicalBase() : memory.GetLogicalPageMappingsBase());
     MOVP2R(ARM64Reg::X25,
            jo.fastmem_arena ? memory.GetPhysicalBase() : memory.GetPhysicalPageMappingsBase());
@@ -111,7 +113,7 @@ void JitArm64::GenerateAsm()
     {
       // Check if there is a block
       ARM64Reg pc_masked = ARM64Reg::X25;
-      ARM64Reg cache_base = ARM64Reg::X27;
+      ARM64Reg cache_base = ARM64Reg::X24;
       ARM64Reg block = ARM64Reg::X30;
       LSL(pc_masked, DISPATCHER_PC, 1);
       MOVP2R(cache_base, GetBlockCache()->GetFastBlockMap());
@@ -119,9 +121,7 @@ void JitArm64::GenerateAsm()
       FixupBranch not_found = CBZ(block);
 
       // b.msrBits != msr
-      ARM64Reg msr = ARM64Reg::W25;
       ARM64Reg msr2 = ARM64Reg::W24;
-      LDR(IndexType::Unsigned, msr, PPC_REG, PPCSTATE_OFF(msr));
       AND(msr, msr, LogicalImm(JitBaseBlockCache::JIT_CACHE_MSR_MASK, 32));
       LDR(IndexType::Unsigned, msr2, block, offsetof(JitBlockData, msrBits));
       CMP(msr, msr2);
