@@ -311,8 +311,8 @@ protected:
   void BeginTimeProfile(JitBlock* b);
   void EndTimeProfile(JitBlock* b);
 
-  // RMEM
   void UpdateMembase();
+  void StoreMembase(const Arm64Gen::ARM64Reg &msr);
 
   // Exits
   void WriteExit(u32 destination, bool LK = false, u32 exit_address_after_return = 0);

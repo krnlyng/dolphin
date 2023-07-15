@@ -495,6 +495,16 @@ void Jit64::UpdateMembase()
   MOV(64, R(RMEM), PPCSTATE(mem_ptr));
 }
 
+void Jit64::StoreMembase(const OpArg &msr)
+{
+  auto& memory = m_system.GetMemory();
+  MOV(64, R(RMEM), ImmPtr(memory.GetLogicalBase()));
+  MOV(64, R(RSCRATCH2), ImmPtr(memory.GetPhysicalBase()));
+  TEST(32, msr, Imm32(1 << (31 - 27)));
+  CMOVcc(64, RMEM, R(RSCRATCH2), CC_Z);
+  MOV(64, PPCSTATE(mem_ptr), R(RMEM));
+}
+
 void Jit64::WriteExit(u32 destination, bool bl, u32 after)
 {
   if (!m_enable_blr_optimization)

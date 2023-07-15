@@ -56,12 +56,7 @@ void Jit64::rfi(UGeckoInstruction inst)
   AND(32, R(RSCRATCH), Imm32(mask & clearMSR13));
   OR(32, PPCSTATE(msr), R(RSCRATCH));
 
-  auto& memory = m_system.GetMemory();
-  TEST(32, R(RSCRATCH), Imm32(1 << (31 - 27)));
-  MOV(64, R(RMEM), ImmPtr(memory.GetLogicalBase()));
-  MOV(64, R(RSCRATCH2), ImmPtr(memory.GetPhysicalBase()));
-  CMOVcc(64, RMEM, R(RSCRATCH2), CC_Z);
-  MOV(64, PPCSTATE(mem_ptr), R(RMEM));
+  StoreMembase(R(RSCRATCH));
 
   // NPC = SRR0;
   MOV(32, R(RSCRATCH), PPCSTATE_SRR0);

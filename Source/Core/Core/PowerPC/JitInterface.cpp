@@ -104,21 +104,11 @@ void JitInterface::UpdateMembase()
   auto& memory = m_system.GetMemory();
   if (ppc_state.msr.DR)
   {
-#ifdef _M_X86_64
-    ppc_state.mem_ptr = memory.GetLogicalBase();
-#endif
-#ifdef _M_ARM_64
     ppc_state.mem_ptr = m_jit->jo.fastmem_arena ? memory.GetLogicalBase() : memory.GetLogicalPageMappingsBase();
-#endif
   }
   else
   {
-#ifdef _M_X86_64
-    ppc_state.mem_ptr = memory.GetPhysicalBase();
-#endif
-#ifdef _M_ARM_64
     ppc_state.mem_ptr = m_jit->jo.fastmem_arena ? memory.GetPhysicalBase() : memory.GetPhysicalPageMappingsBase();
-#endif
   }
 }
 

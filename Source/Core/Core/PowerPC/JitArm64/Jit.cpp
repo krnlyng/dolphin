@@ -129,8 +129,11 @@ bool JitArm64::HandleFault(uintptr_t access_address, SContext* ctx)
       {
         ERROR_LOG_FMT(DYNA_REC,
                       "JitArm64 address calculation overflowed. This should never happen! "
-                      "PC {:#018x}, access address {:#018x}, memory base {:#018x}, MSR.DR {}, memptr {:#018x}, pbase {:#018x}, lbase {:#018x}",
-                      ctx->CTX_PC, access_address, memory_base, m_ppc_state.msr.DR, (u64)m_ppc_state.mem_ptr, (u64)memory.GetPhysicalBase(), (u64)memory.GetLogicalBase());
+                      "PC {:#018x}, access address {:#018x}, memory base {:#018x}, MSR.DR {}, "
+                      "mem_ptr {}, pbase {}, lbase {}",
+                      ctx->CTX_PC, access_address, memory_base, m_ppc_state.msr.DR,
+                      fmt::ptr(m_ppc_state.mem_ptr), fmt::ptr(memory.GetPhysicalBase()),
+                      fmt::ptr(memory.GetLogicalBase()));
       }
       else
       {
