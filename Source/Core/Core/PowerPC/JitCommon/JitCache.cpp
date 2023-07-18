@@ -136,7 +136,7 @@ JitBlock* JitBaseBlockCache::AllocateBlock(u32 em_address)
 void JitBaseBlockCache::FinalizeBlock(JitBlock& block, bool block_link,
                                       const std::set<u32>& physical_addresses)
 {
-  size_t index = FastLookupIndexForAddress(block.effectiveAddress);
+  size_t index = FastLookupIndexForAddress(block.effectiveAddress, block.msrBits);
   m_fast_block_map_ptr[index] = &block;
   block.fast_block_map_index = index;
 
@@ -200,7 +200,7 @@ JitBlock* JitBaseBlockCache::GetBlockFromStartAddress(u32 addr, u32 msr)
 const u8* JitBaseBlockCache::Dispatch()
 {
   const auto& ppc_state = m_jit.m_ppc_state;
-  JitBlock* block = m_fast_block_map_ptr[FastLookupIndexForAddress(ppc_state.pc)];
+  JitBlock* block = m_fast_block_map_ptr[FastLookupIndexForAddress(ppc_state.pc, ppc_state.msr.Hex)];
 
   if (!block || block->effectiveAddress != ppc_state.pc ||
       block->msrBits != (ppc_state.msr.Hex & JIT_CACHE_MSR_MASK))
@@ -453,18 +453,18 @@ JitBlock* JitBaseBlockCache::MoveBlockIntoFastCache(u32 addr, u32 msr)
     m_fast_block_map_ptr[block->fast_block_map_index] = nullptr;
 
   // And create a new one
-  size_t index = FastLookupIndexForAddress(addr);
+  size_t index = FastLookupIndexForAddress(addr, msr);
   m_fast_block_map_ptr[index] = block;
   block->fast_block_map_index = index;
 
   return block;
 }
 
-size_t JitBaseBlockCache::FastLookupIndexForAddress(u32 address)
+size_t JitBaseBlockCache::FastLookupIndexForAddress(u32 address, u32 msr)
 {
   if (m_fast_block_map)
   {
-    return address >> 2;
+    return (address) | ((msr & JIT_CACHE_MSR_MASK) >> 4);
   }
   else
   {

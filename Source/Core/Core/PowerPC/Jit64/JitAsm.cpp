@@ -116,13 +116,16 @@ void Jit64AsmRoutineManager::Generate()
   {
     if (m_jit.GetBlockCache()->GetFastBlockMap())
     {
+      MOV(32, R(RSCRATCH2), PPCSTATE(msr));
+      AND(32, R(RSCRATCH2), Imm32(JitBaseBlockCache::JIT_CACHE_MSR_MASK));
+      SHR(32, R(RSCRATCH2), Imm8(4));
+
       u64 icache = reinterpret_cast<u64>(m_jit.GetBlockCache()->GetFastBlockMap());
-      MOV(32, R(RSCRATCH), PPCSTATE(pc));
+      MOV(32, R(RSCRATCH_EXTRA), PPCSTATE(pc));
+      OR(32, R(RSCRATCH_EXTRA), R(RSCRATCH2));
 
       MOV(64, R(RSCRATCH2), Imm64(icache));
-      // Each 4-byte offset of the PC register corresponds to a 8-byte offset
-      // in the lookup table due to host pointers being 8-bytes long.
-      MOV(64, R(RSCRATCH), MComplex(RSCRATCH2, RSCRATCH, SCALE_2, 0));
+      MOV(64, R(RSCRATCH), MComplex(RSCRATCH2, RSCRATCH_EXTRA, SCALE_8, 0));
     }
     else
     {
@@ -147,32 +150,31 @@ void Jit64AsmRoutineManager::Generate()
     // Check if we found a block.
     TEST(64, R(RSCRATCH), R(RSCRATCH));
     FixupBranch not_found = J_CC(CC_Z);
+    FixupBranch state_mismatch;
 
-    // Check block.msrBits.
-    MOV(32, R(RSCRATCH2), PPCSTATE(msr));
-    AND(32, R(RSCRATCH2), Imm32(JitBaseBlockCache::JIT_CACHE_MSR_MASK));
-
-    if (m_jit.GetBlockCache()->GetFastBlockMap())
+    if (!m_jit.GetBlockCache()->GetFastBlockMap())
     {
-      CMP(32, R(RSCRATCH2), MDisp(RSCRATCH, static_cast<s32>(offsetof(JitBlockData, msrBits))));
-    }
-    else
-    {
+      // Check block.msrBits.
+      MOV(32, R(RSCRATCH2), PPCSTATE(msr));
+      AND(32, R(RSCRATCH2), Imm32(JitBaseBlockCache::JIT_CACHE_MSR_MASK));
       // Also check the block.effectiveAddress
       SHL(64, R(RSCRATCH2), Imm8(32));
       // RSCRATCH_EXTRA still has the PC.
       OR(64, R(RSCRATCH2), R(RSCRATCH_EXTRA));
       CMP(64, R(RSCRATCH2),
           MDisp(RSCRATCH, static_cast<s32>(offsetof(JitBlockData, effectiveAddress))));
-    }
 
-    FixupBranch state_mismatch = J_CC(CC_NE);
+      state_mismatch = J_CC(CC_NE);
+    }
 
     // Success; branch to the block we found.
     JMPptr(MDisp(RSCRATCH, static_cast<s32>(offsetof(JitBlockData, normalEntry))));
 
     SetJumpTarget(not_found);
-    SetJumpTarget(state_mismatch);
+    if (!m_jit.GetBlockCache()->GetFastBlockMap())
+    {
+      SetJumpTarget(state_mismatch);
+    }
 
     // Failure, fallback to the C++ dispatcher for calling the JIT.
   }

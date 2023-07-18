@@ -133,8 +133,8 @@ public:
   static constexpr u32 JIT_CACHE_MSR_MASK = 0x30;
 
   // The value for the map is determined like this:
-  // ((4 GB guest memory space) / (4 bytes per address)) * sizeof(JitBlock*)
-  static constexpr u64 FAST_BLOCK_MAP_SIZE = 0x2'0000'0000;
+  // (4 GB guest memory space) * sizeof(JitBlock*)
+  static constexpr u64 FAST_BLOCK_MAP_SIZE = 0x8'0000'0000;
   static constexpr u32 FAST_BLOCK_MAP_FALLBACK_ELEMENTS = 0x10000;
   static constexpr u32 FAST_BLOCK_MAP_FALLBACK_MASK = FAST_BLOCK_MAP_FALLBACK_ELEMENTS - 1;
 
@@ -188,7 +188,7 @@ private:
   JitBlock* MoveBlockIntoFastCache(u32 em_address, u32 msr);
 
   // Fast but risky block lookup based on fast_block_map.
-  size_t FastLookupIndexForAddress(u32 address);
+  size_t FastLookupIndexForAddress(u32 address, u32 msr);
 
   // links_to hold all exit points of all valid blocks in a reverse way.
   // It is used to query all blocks which links to an address.

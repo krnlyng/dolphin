@@ -108,24 +108,18 @@ void JitArm64::GenerateAsm()
       ARM64Reg pc_masked = ARM64Reg::X25;
       ARM64Reg cache_base = ARM64Reg::X24;
       ARM64Reg block = ARM64Reg::X30;
-      LSL(pc_masked, DISPATCHER_PC, 1);
+      AND(pc_masked, msr, LogicalImm(JitBaseBlockCache::JIT_CACHE_MSR_MASK, 32));
+      LSR(pc_masked, pc_masked, 4);
+      ORR(pc_masked, pc_masked, DISPATCHER_PC);
+      LSL(pc_masked, pc_masked, 3);
       MOVP2R(cache_base, GetBlockCache()->GetFastBlockMap());
       LDR(block, cache_base, pc_masked);
       FixupBranch not_found = CBZ(block);
-
-      // b.msrBits != msr
-      ARM64Reg msr2 = ARM64Reg::W24;
-      AND(msr, msr, LogicalImm(JitBaseBlockCache::JIT_CACHE_MSR_MASK, 32));
-      LDR(IndexType::Unsigned, msr2, block, offsetof(JitBlockData, msrBits));
-      CMP(msr, msr2);
-
-      FixupBranch msr_missmatch = B(CC_NEQ);
 
       // return blocks[block_num].normalEntry;
       LDR(IndexType::Unsigned, block, block, offsetof(JitBlockData, normalEntry));
       BR(block);
       SetJumpTarget(not_found);
-      SetJumpTarget(msr_missmatch);
     }
     else
     {
