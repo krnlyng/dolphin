@@ -465,6 +465,7 @@ void UpdatePerformanceMonitor(u32 cycles, u32 num_load_stores, u32 num_fp_inst,
 
 void PowerPCManager::CheckExceptions()
 {
+  bool external = false;
   u32 exceptions = m_ppc_state.Exceptions;
 
   // Example procedure:
@@ -568,10 +569,14 @@ void PowerPCManager::CheckExceptions()
   // EXTERNAL INTERRUPT
   else
   {
+    external = true;
     CheckExternalExceptions();
   }
 
-  m_system.GetJitInterface().UpdateMembase();
+  // CheckExternalExceptions already updated the membase
+  if (!external) {
+    m_system.GetJitInterface().UpdateMembase();
+  }
 }
 
 void PowerPCManager::CheckExternalExceptions()

@@ -94,7 +94,7 @@ void JitArm64::mtmsr(UGeckoInstruction inst)
   gpr.BindToRegister(inst.RS, true);
   STR(IndexType::Unsigned, gpr.R(inst.RS), PPC_REG, PPCSTATE_OFF(msr));
 
-  StoreMembase(gpr.R(inst.RS));
+  EmitStoreMembase(gpr.R(inst.RS));
 
   gpr.Flush(FlushMode::All, ARM64Reg::INVALID_REG);
   fpr.Flush(FlushMode::All, ARM64Reg::INVALID_REG);

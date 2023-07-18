@@ -65,6 +65,10 @@ void Jit64AsmRoutineManager::Generate()
   ABI_CallFunction(CoreTiming::GlobalAdvance);
   ABI_PopRegistersAndAdjustStack({}, 0);
 
+  // GlobalAdvance checks exceptions so
+  // set the membase here
+  m_jit.EmitUpdateMembase();
+
   // skip the sync and compare first time
   FixupBranch skipToRealDispatch = J(enable_debugging ? Jump::Near : Jump::Short);
 
@@ -165,8 +169,6 @@ void Jit64AsmRoutineManager::Generate()
     FixupBranch state_mismatch = J_CC(CC_NE);
 
     // Success; branch to the block we found.
-    // Switch to the correct memory base, in case MSR.DR has changed.
-    m_jit.UpdateMembase();
     JMPptr(MDisp(RSCRATCH, static_cast<s32>(offsetof(JitBlockData, normalEntry))));
 
     SetJumpTarget(not_found);
@@ -184,8 +186,7 @@ void Jit64AsmRoutineManager::Generate()
   TEST(64, R(ABI_RETURN), R(ABI_RETURN));
   FixupBranch no_block_available = J_CC(CC_Z);
 
-  // Switch to the correct memory base, in case MSR.DR has changed.
-  m_jit.UpdateMembase();
+  // Jump to the block
   JMPptr(R(ABI_RETURN));
 
   SetJumpTarget(no_block_available);

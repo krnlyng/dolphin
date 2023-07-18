@@ -102,8 +102,6 @@ void JitArm64::GenerateAsm()
     ARM64Reg msr = ARM64Reg::W27;
     LDR(IndexType::Unsigned, msr, PPC_REG, PPCSTATE_OFF(msr));
 
-    UpdateMembase();
-
     if (GetBlockCache()->GetFastBlockMap())
     {
       // Check if there is a block
@@ -173,7 +171,6 @@ void JitArm64::GenerateAsm()
 
   FixupBranch no_block_available = CBZ(ARM64Reg::X0);
 
-  UpdateMembase();
   BR(ARM64Reg::X0);
 
   // Call JIT
@@ -202,6 +199,10 @@ void JitArm64::GenerateAsm()
   MOVP2R(ARM64Reg::X8, &CoreTiming::GlobalAdvance);
   BLR(ARM64Reg::X8);
 
+  // GlobalAdvance checks exceptions so
+  // set the membase here
+  EmitUpdateMembase();
+
   // Load the PC back into DISPATCHER_PC (the exception handler might have changed it)
   LDR(IndexType::Unsigned, DISPATCHER_PC, PPC_REG, PPCSTATE_OFF(pc));
 
@@ -229,12 +230,12 @@ void JitArm64::GenerateAsm()
   FlushIcache();
 }
 
-void JitArm64::UpdateMembase()
+void JitArm64::EmitUpdateMembase()
 {
   LDR(IndexType::Unsigned, MEM_REG, PPC_REG, PPCSTATE_OFF(mem_ptr));
 }
 
-void JitArm64::StoreMembase(const ARM64Reg &msr)
+void JitArm64::EmitStoreMembase(const ARM64Reg &msr)
 {
   auto& memory = m_system.GetMemory();
   ARM64Reg WD = gpr.GetReg();

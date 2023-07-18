@@ -528,7 +528,7 @@ void JitArm64::WriteExceptionExit(ARM64Reg dest, bool only_external, bool always
   else
     MOVP2R(EncodeRegTo64(DISPATCHER_PC), &PowerPC::CheckExceptionsFromJIT);
   BLR(EncodeRegTo64(DISPATCHER_PC));
-  UpdateMembase();
+  EmitUpdateMembase();
 
   LDR(IndexType::Unsigned, DISPATCHER_PC, PPC_REG, PPCSTATE_OFF(npc));
 

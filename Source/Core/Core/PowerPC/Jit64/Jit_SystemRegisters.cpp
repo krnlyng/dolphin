@@ -439,7 +439,7 @@ void Jit64::mtmsr(UGeckoInstruction inst)
     RegCache::Realize(Rs);
     MOV(32, PPCSTATE(msr), Rs);
 
-    StoreMembase(PPCSTATE(msr));
+    EmitStoreMembase(PPCSTATE(msr));
   }
 
   gpr.Flush();

@@ -490,12 +490,12 @@ void Jit64::FakeBLCall(u32 after)
   SetJumpTarget(skip_exit);
 }
 
-void Jit64::UpdateMembase()
+void Jit64::EmitUpdateMembase()
 {
   MOV(64, R(RMEM), PPCSTATE(mem_ptr));
 }
 
-void Jit64::StoreMembase(const OpArg &msr)
+void Jit64::EmitStoreMembase(const OpArg &msr)
 {
   auto& memory = m_system.GetMemory();
   MOV(64, R(RMEM), ImmPtr(memory.GetLogicalBase()));
@@ -614,7 +614,7 @@ void Jit64::WriteRfiExitDestInRSCRATCH()
   ABI_PushRegistersAndAdjustStack({}, 0);
   ABI_CallFunctionP(PowerPC::CheckExceptionsFromJIT, &m_system.GetPowerPC());
   ABI_PopRegistersAndAdjustStack({}, 0);
-  UpdateMembase();
+  EmitUpdateMembase();
   SUB(32, PPCSTATE(downcount), Imm32(js.downcountAmount));
   JMP(asm_routines.dispatcher, Jump::Near);
 }
@@ -636,7 +636,7 @@ void Jit64::WriteExceptionExit()
   ABI_PushRegistersAndAdjustStack({}, 0);
   ABI_CallFunctionP(PowerPC::CheckExceptionsFromJIT, &m_system.GetPowerPC());
   ABI_PopRegistersAndAdjustStack({}, 0);
-  UpdateMembase();
+  EmitUpdateMembase();
   SUB(32, PPCSTATE(downcount), Imm32(js.downcountAmount));
   JMP(asm_routines.dispatcher, Jump::Near);
 }
@@ -649,7 +649,7 @@ void Jit64::WriteExternalExceptionExit()
   ABI_PushRegistersAndAdjustStack({}, 0);
   ABI_CallFunctionP(PowerPC::CheckExternalExceptionsFromJIT, &m_system.GetPowerPC());
   ABI_PopRegistersAndAdjustStack({}, 0);
-  UpdateMembase();
+  EmitUpdateMembase();
   SUB(32, PPCSTATE(downcount), Imm32(js.downcountAmount));
   JMP(asm_routines.dispatcher, Jump::Near);
 }
