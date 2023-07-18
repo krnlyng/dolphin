@@ -179,19 +179,24 @@ void Jit64AsmRoutineManager::Generate()
     // Failure, fallback to the C++ dispatcher for calling the JIT.
   }
 
-  // Ok, no block, let's call the slow dispatcher
-  ABI_PushRegistersAndAdjustStack({}, 0);
-  MOV(64, R(ABI_PARAM1), Imm64(reinterpret_cast<u64>(&m_jit)));
-  ABI_CallFunction(JitBase::Dispatch);
-  ABI_PopRegistersAndAdjustStack({}, 0);
+  // There is no point in calling the dispatcher in the fast lookup table
+  // case, since the assembly dispatcher would already have found a block.
+  if (!assembly_dispatcher || !m_jit.GetBlockCache()->GetFastBlockMap())
+  {
+    // Ok, no block, let's call the slow dispatcher
+    ABI_PushRegistersAndAdjustStack({}, 0);
+    MOV(64, R(ABI_PARAM1), Imm64(reinterpret_cast<u64>(&m_jit)));
+    ABI_CallFunction(JitBase::Dispatch);
+    ABI_PopRegistersAndAdjustStack({}, 0);
 
-  TEST(64, R(ABI_RETURN), R(ABI_RETURN));
-  FixupBranch no_block_available = J_CC(CC_Z);
+    TEST(64, R(ABI_RETURN), R(ABI_RETURN));
+    FixupBranch no_block_available = J_CC(CC_Z);
 
-  // Jump to the block
-  JMPptr(R(ABI_RETURN));
+    // Jump to the block
+    JMPptr(R(ABI_RETURN));
 
-  SetJumpTarget(no_block_available);
+    SetJumpTarget(no_block_available);
+  }
 
   // We reset the stack because Jit might clear the code cache.
   // Also if we are in the middle of disabling BLR optimization on windows

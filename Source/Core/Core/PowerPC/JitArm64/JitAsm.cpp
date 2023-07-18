@@ -157,18 +157,25 @@ void JitArm64::GenerateAsm()
     }
   }
 
-  // Call C version of Dispatch().
   STR(IndexType::Unsigned, DISPATCHER_PC, PPC_REG, PPCSTATE_OFF(pc));
-  MOVP2R(ARM64Reg::X8, reinterpret_cast<void*>(&JitBase::Dispatch));
-  MOVP2R(ARM64Reg::X0, this);
-  BLR(ARM64Reg::X8);
 
-  FixupBranch no_block_available = CBZ(ARM64Reg::X0);
+  // There is no point in calling the dispatcher in the fast lookup table
+  // case, since the assembly dispatcher would already have found a block.
+  if (!assembly_dispatcher || !GetBlockCache()->GetFastBlockMap())
+  {
+    // Call C version of Dispatch().
+    MOVP2R(ARM64Reg::X8, reinterpret_cast<void*>(&JitBase::Dispatch));
+    MOVP2R(ARM64Reg::X0, this);
+    BLR(ARM64Reg::X8);
 
-  BR(ARM64Reg::X0);
+    FixupBranch no_block_available = CBZ(ARM64Reg::X0);
+
+    BR(ARM64Reg::X0);
+
+    SetJumpTarget(no_block_available);
+  }
 
   // Call JIT
-  SetJumpTarget(no_block_available);
   ResetStack();
   MOVP2R(ARM64Reg::X0, this);
   MOV(ARM64Reg::W1, DISPATCHER_PC);
