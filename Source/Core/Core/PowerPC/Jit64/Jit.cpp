@@ -125,6 +125,14 @@ Jit64::~Jit64() = default;
 
 bool Jit64::HandleFault(uintptr_t access_address, SContext* ctx)
 {
+  if (access_address == static_cast<s32>(offsetof(JitBlockData, normalEntry))) {
+    auto& ppc_state = m_system.GetPPCState();
+    Jit(ppc_state.pc);
+    // RSCRATCH
+    ctx->CTX_RAX = reinterpret_cast<greg_t>(js.curBlock);
+    return true;
+  }
+
   const uintptr_t stack_guard = reinterpret_cast<uintptr_t>(m_stack_guard);
   // In the trap region?
   if (m_enable_blr_optimization && access_address >= stack_guard &&

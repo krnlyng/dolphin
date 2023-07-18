@@ -148,8 +148,6 @@ void Jit64AsmRoutineManager::Generate()
     }
 
     // Check if we found a block.
-    TEST(64, R(RSCRATCH), R(RSCRATCH));
-    FixupBranch not_found = J_CC(CC_Z);
     FixupBranch state_mismatch;
 
     if (!m_jit.GetBlockCache()->GetFastBlockMap())
@@ -170,7 +168,6 @@ void Jit64AsmRoutineManager::Generate()
     // Success; branch to the block we found.
     JMPptr(MDisp(RSCRATCH, static_cast<s32>(offsetof(JitBlockData, normalEntry))));
 
-    SetJumpTarget(not_found);
     if (!m_jit.GetBlockCache()->GetFastBlockMap())
     {
       SetJumpTarget(state_mismatch);
