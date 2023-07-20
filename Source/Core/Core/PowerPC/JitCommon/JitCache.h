@@ -148,6 +148,7 @@ public:
 
   // Code Cache
   JitBlock** GetFastBlockMap();
+  u8** GetEntryPoints();
   JitBlock** GetFastBlockMapFallback();
   void RunOnBlocks(std::function<void(const JitBlock&)> f);
 
@@ -220,4 +221,6 @@ private:
       m_fast_block_map_fallback{};  // start_addr & mask -> number
 
   JitBlock** m_fast_block_map_ptr = 0;
+  Common::MemArena m_entry_points_arena;
+  u8** m_entry_points_ptr = 0;
 };

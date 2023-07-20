@@ -44,6 +44,8 @@ void JitBaseBlockCache::Init()
 
   m_block_map_arena.GrabSHMSegment(FAST_BLOCK_MAP_SIZE, "dolphin-emu-jitblock");
 
+  m_entry_points_arena.GrabSHMSegment(FAST_BLOCK_MAP_SIZE, "dolphin-emu-jitblock-entrypoints");
+
   Clear();
 }
 
@@ -57,6 +59,13 @@ void JitBaseBlockCache::Shutdown()
   }
 
   m_block_map_arena.ReleaseSHMSegment();
+
+  if (m_entry_points_ptr)
+  {
+    m_entry_points_arena.ReleaseView(m_entry_points_ptr, FAST_BLOCK_MAP_SIZE);
+  }
+
+  m_entry_points_arena.ReleaseSHMSegment();
 }
 
 // This clears the JIT cache. It's called from JitCache.cpp when the JIT cache
@@ -97,12 +106,27 @@ void JitBaseBlockCache::Clear()
   {
     m_fast_block_map_ptr = m_fast_block_map_fallback.data();
   }
+
+  if (m_entry_points_ptr)
+  {
+    m_block_map_arena.ReleaseView(m_entry_points_ptr, FAST_BLOCK_MAP_SIZE);
+    m_block_map_arena.ReleaseSHMSegment();
+    m_block_map_arena.GrabSHMSegment(FAST_BLOCK_MAP_SIZE, "dolphin-emu-jitblock-entrypoints");
+  }
+
+  m_entry_points_ptr =
+      reinterpret_cast<u8**>(m_entry_points_arena.CreateView(0, FAST_BLOCK_MAP_SIZE));
 }
 
 void JitBaseBlockCache::Reset()
 {
   Shutdown();
   Init();
+}
+
+u8** JitBaseBlockCache::GetEntryPoints()
+{
+  return m_entry_points_ptr;
 }
 
 JitBlock** JitBaseBlockCache::GetFastBlockMap()
@@ -138,6 +162,7 @@ void JitBaseBlockCache::FinalizeBlock(JitBlock& block, bool block_link,
 {
   size_t index = FastLookupIndexForAddress(block.effectiveAddress, block.msrBits);
   m_fast_block_map_ptr[index] = &block;
+  m_entry_points_ptr[index] = block.normalEntry;
   block.fast_block_map_index = index;
 
   block.physical_addresses = physical_addresses;
@@ -422,7 +447,10 @@ void JitBaseBlockCache::UnlinkBlock(const JitBlock& block)
 void JitBaseBlockCache::DestroyBlock(JitBlock& block)
 {
   if (m_fast_block_map_ptr[block.fast_block_map_index] == &block)
+  {
     m_fast_block_map_ptr[block.fast_block_map_index] = nullptr;
+    m_entry_points_ptr[block.fast_block_map_index] = nullptr;
+  }
 
   UnlinkBlock(block);
 
@@ -450,11 +478,15 @@ JitBlock* JitBaseBlockCache::MoveBlockIntoFastCache(u32 addr, u32 msr)
 
   // Drop old fast block map entry
   if (m_fast_block_map_ptr[block->fast_block_map_index] == block)
+  {
     m_fast_block_map_ptr[block->fast_block_map_index] = nullptr;
+    m_entry_points_ptr[block->fast_block_map_index] = nullptr;
+  }
 
   // And create a new one
   size_t index = FastLookupIndexForAddress(addr, msr);
   m_fast_block_map_ptr[index] = block;
+  m_entry_points_ptr[index] = block->normalEntry;
   block->fast_block_map_index = index;
 
   return block;

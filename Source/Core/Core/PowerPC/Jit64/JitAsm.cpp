@@ -120,10 +120,10 @@ void Jit64AsmRoutineManager::Generate()
       AND(32, R(RSCRATCH2), Imm32(JitBaseBlockCache::JIT_CACHE_MSR_MASK));
       SHR(32, R(RSCRATCH2), Imm8(4));
 
-      u64 icache = reinterpret_cast<u64>(m_jit.GetBlockCache()->GetFastBlockMap());
       MOV(32, R(RSCRATCH_EXTRA), PPCSTATE(pc));
       OR(32, R(RSCRATCH_EXTRA), R(RSCRATCH2));
 
+      u64 icache = reinterpret_cast<u64>(m_jit.GetBlockCache()->GetEntryPoints());
       MOV(64, R(RSCRATCH2), Imm64(icache));
       MOV(64, R(RSCRATCH), MComplex(RSCRATCH2, RSCRATCH_EXTRA, SCALE_8, 0));
     }
@@ -168,7 +168,7 @@ void Jit64AsmRoutineManager::Generate()
     }
 
     // Success; branch to the block we found.
-    JMPptr(MDisp(RSCRATCH, static_cast<s32>(offsetof(JitBlockData, normalEntry))));
+    JMPptr(R(RSCRATCH));//MDisp(RSCRATCH, static_cast<s32>(offsetof(JitBlockData, normalEntry))));
 
     SetJumpTarget(not_found);
     if (!m_jit.GetBlockCache()->GetFastBlockMap())
