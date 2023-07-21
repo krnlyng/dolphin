@@ -112,12 +112,12 @@ void JitArm64::GenerateAsm()
       LSR(pc_masked, pc_masked, 4);
       ORR(pc_masked, pc_masked, DISPATCHER_PC);
       LSL(pc_masked, pc_masked, 3);
-      MOVP2R(cache_base, GetBlockCache()->GetFastBlockMap());
+      MOVP2R(cache_base, GetBlockCache()->GetEntryPoints());
       LDR(block, cache_base, pc_masked);
       FixupBranch not_found = CBZ(block);
 
       // return blocks[block_num].normalEntry;
-      LDR(IndexType::Unsigned, block, block, offsetof(JitBlockData, normalEntry));
+//      LDR(IndexType::Unsigned, block, block, offsetof(JitBlockData, normalEntry));
       BR(block);
       SetJumpTarget(not_found);
     }
