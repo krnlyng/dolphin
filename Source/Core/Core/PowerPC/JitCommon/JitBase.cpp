@@ -55,9 +55,9 @@ const u8* JitBase::Dispatch(JitBase& jit)
   return jit.GetBlockCache()->Dispatch();
 }
 
-void JitTrampoline(JitBase& jit, u32 em_address)
+u8* JitTrampoline(JitBase& jit, u32 em_address)
 {
-  jit.Jit(em_address);
+  return jit.Jit(em_address);
 }
 
 JitBase::JitBase(Core::System& system)

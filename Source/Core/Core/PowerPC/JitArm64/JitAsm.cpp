@@ -182,6 +182,9 @@ void JitArm64::GenerateAsm()
   MOVP2R(ARM64Reg::X8, reinterpret_cast<void*>(&JitTrampoline));
   BLR(ARM64Reg::X8);
   LDR(IndexType::Unsigned, DISPATCHER_PC, PPC_REG, PPCSTATE_OFF(pc));
+
+  BR(ARM64Reg::X0);
+
   B(dispatcher_no_check);
 
   SetJumpTarget(bail);

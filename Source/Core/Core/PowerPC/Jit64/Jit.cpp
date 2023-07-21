@@ -716,13 +716,14 @@ void Jit64::Trace()
                 m_ppc_state.msr.Hex, m_ppc_state.spr[8], regs, fregs);
 }
 
-void Jit64::Jit(u32 em_address)
+u8* Jit64::Jit(u32 em_address)
 {
-  Jit(em_address, true);
+  return Jit(em_address, true);
 }
 
-void Jit64::Jit(u32 em_address, bool clear_cache_and_retry_on_failure)
+u8* Jit64::Jit(u32 em_address, bool clear_cache_and_retry_on_failure)
 {
+  u8* res = 0;
   CleanUpAfterStackFault();
 
   if (trampolines.IsAlmostFull() || SConfig::GetInstance().bJITNoBlockCache)
@@ -781,7 +782,7 @@ void Jit64::Jit(u32 em_address, bool clear_cache_and_retry_on_failure)
     m_system.GetPowerPC().CheckExceptions();
     m_system.GetJitInterface().UpdateMembase();
     WARN_LOG_FMT(POWERPC, "ISI exception at {:#010x}", nextPC);
-    return;
+    return res;
   }
 
   if (SetEmitterStateToFreeCodeRegion())
@@ -790,7 +791,7 @@ void Jit64::Jit(u32 em_address, bool clear_cache_and_retry_on_failure)
     u8* far_start = m_far_code.GetWritableCodePtr();
 
     JitBlock* b = blocks.AllocateBlock(em_address);
-    if (DoJit(em_address, b, nextPC))
+    if (res = DoJit(em_address, b, nextPC))
     {
       // Code generation succeeded.
 
@@ -810,7 +811,7 @@ void Jit64::Jit(u32 em_address, bool clear_cache_and_retry_on_failure)
       b->far_end = far_end;
 
       blocks.FinalizeBlock(*b, jo.enableBlocklink, code_block.m_physical_addresses);
-      return;
+      return res;
     }
   }
 
@@ -820,8 +821,7 @@ void Jit64::Jit(u32 em_address, bool clear_cache_and_retry_on_failure)
     // Clear the entire JIT cache and retry.
     WARN_LOG_FMT(POWERPC, "flushing code caches, please report if this happens a lot");
     ClearCache();
-    Jit(em_address, false);
-    return;
+    return Jit(em_address, false);
   }
 
   PanicAlertFmtT(
@@ -853,7 +853,7 @@ bool Jit64::SetEmitterStateToFreeCodeRegion()
   return true;
 }
 
-bool Jit64::DoJit(u32 em_address, JitBlock* b, u32 nextPC)
+u8* Jit64::DoJit(u32 em_address, JitBlock* b, u32 nextPC)
 {
   js.firstFPInstructionFound = false;
   js.isLastInstruction = false;
@@ -1172,7 +1172,7 @@ bool Jit64::DoJit(u32 em_address, JitBlock* b, u32 nextPC)
     if (m_far_code.HasWriteFailed())
       WARN_LOG_FMT(POWERPC, "JIT ran out of space in far code region during code generation.");
 
-    return false;
+    return 0;
   }
 
   b->codeSize = (u32)(GetCodePtr() - start);
@@ -1182,7 +1182,7 @@ bool Jit64::DoJit(u32 em_address, JitBlock* b, u32 nextPC)
   LogGeneratedX86(code_block.m_num_instructions, m_code_buffer, start, b);
 #endif
 
-  return true;
+  return b->normalEntry;
 }
 
 BitSet8 Jit64::ComputeStaticGQRs(const PPCAnalyst::CodeBlock& cb) const

@@ -37,7 +37,7 @@ public:
   const char* GetName() const override { return nullptr; }
   // JitBase methods
   JitBaseBlockCache* GetBlockCache() override { return nullptr; }
-  void Jit(u32 em_address) override {}
+  u8* Jit(u32 em_address) override { return 0; }
   const CommonAsmRoutinesBase* GetAsmRoutines() override { return nullptr; }
   virtual bool HandleFault(uintptr_t access_address, SContext* ctx) override
   {

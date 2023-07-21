@@ -210,6 +210,8 @@ void Jit64AsmRoutineManager::Generate()
   ABI_CallFunction(JitTrampoline);
   ABI_PopRegistersAndAdjustStack({}, 0);
 
+  JMPptr(R(ABI_RETURN));
+
   JMP(dispatcher_no_check, Jump::Near);
 
   SetJumpTarget(bail);

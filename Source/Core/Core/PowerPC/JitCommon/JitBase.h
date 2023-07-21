@@ -184,7 +184,7 @@ public:
   static const u8* Dispatch(JitBase& jit);
   virtual JitBaseBlockCache* GetBlockCache() = 0;
 
-  virtual void Jit(u32 em_address) = 0;
+  virtual u8 *Jit(u32 em_address) = 0;
 
   virtual const CommonAsmRoutinesBase* GetAsmRoutines() = 0;
 
@@ -202,4 +202,4 @@ public:
   PowerPC::MMU& m_mmu;
 };
 
-void JitTrampoline(JitBase& jit, u32 em_address);
+u8* JitTrampoline(JitBase& jit, u32 em_address);

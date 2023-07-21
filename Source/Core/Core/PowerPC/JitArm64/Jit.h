@@ -44,8 +44,8 @@ public:
   void Run() override;
   void SingleStep() override;
 
-  void Jit(u32 em_address) override;
-  void Jit(u32 em_address, bool clear_cache_and_retry_on_failure);
+  u8* Jit(u32 em_address) override;
+  u8* Jit(u32 em_address, bool clear_cache_and_retry_on_failure);
 
   const char* GetName() const override { return "JITARM64"; }
 
@@ -280,7 +280,7 @@ protected:
   Arm64Gen::FixupBranch CheckIfSafeAddress(Arm64Gen::ARM64Reg addr, Arm64Gen::ARM64Reg tmp1,
                                            Arm64Gen::ARM64Reg tmp2);
 
-  bool DoJit(u32 em_address, JitBlock* b, u32 nextPC);
+  u8* DoJit(u32 em_address, JitBlock* b, u32 nextPC);
 
   void Trace();
 

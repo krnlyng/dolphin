@@ -281,7 +281,7 @@ bool CachedInterpreter::HandleFunctionHooking(u32 address)
   });
 }
 
-void CachedInterpreter::Jit(u32 address)
+u8* CachedInterpreter::Jit(u32 address)
 {
   if (m_code.size() >= CODE_SIZE / sizeof(Instruction) - 0x1000 ||
       SConfig::GetInstance().bJITNoBlockCache)
@@ -298,7 +298,7 @@ void CachedInterpreter::Jit(u32 address)
     m_ppc_state.Exceptions |= EXCEPTION_ISI;
     m_system.GetPowerPC().CheckExceptions();
     WARN_LOG_FMT(POWERPC, "ISI exception at {:#010x}", nextPC);
-    return;
+    return 0;
   }
 
   JitBlock* b = m_block_cache.AllocateBlock(m_ppc_state.pc);
@@ -378,6 +378,7 @@ void CachedInterpreter::Jit(u32 address)
   b->originalSize = code_block.m_num_instructions;
 
   m_block_cache.FinalizeBlock(*b, jo.enableBlocklink, code_block.m_physical_addresses);
+  return 0;
 }
 
 void CachedInterpreter::ClearCache()
