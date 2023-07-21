@@ -2647,7 +2647,7 @@ void TextureCacheBase::UninitializeEFBMemory(u8* dst, u32 stride, u32 bytes_per_
 {
   // Hack: Most games don't actually need the correct texture data in RAM
   //       and we can just keep a copy in VRAM. We zero the memory so we
-  //       can check it hasn't changed before using our copy in VRAM.
+  //       can check it hasn't changed before using our copy in VRAM. 
   u8* ptr = dst;
   for (u32 i = 0; i < num_blocks_y; i++)
   {
@@ -2837,6 +2837,10 @@ TextureCacheBase::InvalidateTexture(TexAddrCache::iterator iter, bool discard_pe
   }
   entry->invalidated = true;
 
+  auto& system = Core::System::GetInstance();
+  auto& memory = system.GetMemory();
+  CheckTextureMemory((uintptr_t)memory.GetPointer(entry->addr));
+
   return textures_by_address.erase(iter);
 }
 
@@ -2881,6 +2885,8 @@ void TextureCacheBase::CopyEFBToCacheEntry(RcTcacheEntry& entry, bool is_depth_c
                                            bool clamp_top, bool clamp_bottom,
                                            const std::array<u32, 3>& filter_coefficients)
 {
+  auto& system = Core::System::GetInstance();
+  auto& memory = system.GetMemory();
   // Flush EFB pokes first, as they're expected to be included.
   g_framebuffer_manager->FlushEFBPokes();
 
@@ -3161,6 +3167,51 @@ int TCacheEntry::HashSampleSize() const
   return g_ActiveConfig.iSafeTextureCache_ColorSamples;
 }
 
+void TCacheEntry::SetHashes(u64 _base_hash, u64 _hash)
+{
+  auto& system = Core::System::GetInstance();
+  auto& memory = system.GetMemory();
+  u8* ptr = memory.GetPointer(addr);
+
+  base_hash = _base_hash;
+  hash = _hash;
+
+  if (memory_touched) {
+    memory_touched = false;
+      //fprintf(stderr, "PROT: %p %d\n", (void*)Common::AlignDown((uintptr_t)ptr, 4096), size_in_bytes + 4096);
+    Common::WriteProtectMemory((void*)Common::AlignDown((uintptr_t)ptr, 4096), size_in_bytes + 4096, false);
+  }
+}
+
+bool TextureCacheBase::CheckTextureMemory(uintptr_t access_ptr)
+{
+  auto& system = Core::System::GetInstance();
+  auto& memory = system.GetMemory();
+
+    //fprintf(stderr, "ACC: %lx\n", access_ptr);
+  TexAddrCache::iterator iter = textures_by_address.begin();
+  TexAddrCache::iterator tcend = textures_by_address.end();
+  while (iter != tcend)
+  {//fprintf(stderr, "%u %u\n", iter->second->addr, iter->first);
+    if (!iter->second->memory_touched)
+    {
+      u8* texptr = memory.GetPointer(iter->second->addr);
+    uintptr_t aligned_texptr = (uintptr_t)Common::AlignDown((uintptr_t)texptr, 4096);
+      uintptr_t aligned_access_ptr = (uintptr_t)Common::AlignDown((uintptr_t)access_ptr, 4096);
+      if (aligned_texptr <= aligned_access_ptr && aligned_texptr + iter->second->size_in_bytes + 4096 >= aligned_access_ptr)
+      {
+        iter->second->memory_touched = true;
+    //fprintf(stderr, "UnPROT: %p %d\n", (void*)Common::AlignDown((uintptr_t)texptr, 4096), iter->second->size_in_bytes + 4096);
+        Common::UnWriteProtectMemory((void*)aligned_texptr, iter->second->size_in_bytes + 4096, false);
+        return true;
+      }
+    }
+    iter++;
+  }
+
+  return false;
+}
+
 u64 TCacheEntry::CalculateHash() const
 {
   const u32 bytes_per_row = BytesPerRow();
@@ -3170,6 +3221,11 @@ u64 TCacheEntry::CalculateHash() const
   auto& system = Core::System::GetInstance();
   auto& memory = system.GetMemory();
   u8* ptr = memory.GetPointer(addr);
+
+  if (!memory_touched) {
+    return hash;
+  }
+
   if (memory_stride == bytes_per_row)
   {
     return Common::GetHash64(ptr, size_in_bytes, hash_sample_size);

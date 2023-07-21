@@ -125,6 +125,7 @@ struct TCacheEntry
   u32 size_in_bytes = 0;
   u64 base_hash = 0;
   u64 hash = 0;  // for paletted textures, hash = base_hash ^ palette_hash
+  bool memory_touched = true;
   TextureAndTLUTFormat format;
   u32 memory_stride = 0;
   bool is_efb_copy = false;
@@ -193,11 +194,10 @@ struct TCacheEntry
     memory_stride = _native_width;
   }
 
-  void SetHashes(u64 _base_hash, u64 _hash)
-  {
-    base_hash = _base_hash;
-    hash = _hash;
-  }
+  void SetHashes(u64 _base_hash, u64 _hash);
+
+//  void ProtectMemory();
+//  void UnprotectMemory();
 
   // This texture entry is used by the other entry as a sub-texture
   void CreateReference(TCacheEntry* other_entry)
@@ -266,6 +266,8 @@ public:
 
   bool Initialize();
   void Shutdown();
+
+  bool CheckTextureMemory(uintptr_t ptr);
 
   void OnConfigChanged(const VideoConfig& config);
 
