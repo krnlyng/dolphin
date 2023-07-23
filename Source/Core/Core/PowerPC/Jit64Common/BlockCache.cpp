@@ -32,6 +32,11 @@ void JitBlockCache::WriteLinkBlock(const JitBlock::LinkData& source, const JitBl
       Gen::XEmitter emit(location, location + offset);
       emit.NOP(offset);
     }
+    else if (offset < 0x7f && offset > -0x7f)
+    {
+      Gen::XEmitter emit(location, location + 5);
+      emit.JMP(address, Gen::XEmitter::Jump::Short);
+    }
     else
     {
       Gen::XEmitter emit(location, location + 5);
