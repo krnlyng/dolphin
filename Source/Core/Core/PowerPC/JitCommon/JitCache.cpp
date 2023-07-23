@@ -109,9 +109,9 @@ void JitBaseBlockCache::Clear()
 
   if (m_entry_points_ptr)
   {
-    m_block_map_arena.ReleaseView(m_entry_points_ptr, FAST_BLOCK_MAP_SIZE);
-    m_block_map_arena.ReleaseSHMSegment();
-    m_block_map_arena.GrabSHMSegment(FAST_BLOCK_MAP_SIZE, "dolphin-emu-jitblock-entrypoints");
+    m_entry_points_arena.ReleaseView(m_entry_points_ptr, FAST_BLOCK_MAP_SIZE);
+    m_entry_points_arena.ReleaseSHMSegment();
+    m_entry_points_arena.GrabSHMSegment(FAST_BLOCK_MAP_SIZE, "dolphin-emu-jitblock-entrypoints");
   }
 
   m_entry_points_ptr =
