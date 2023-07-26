@@ -53,6 +53,25 @@ void* AllocateExecutableMemory(size_t size)
 
   return ptr;
 }
+void* AllocateExecutableMemoryAt(void *at, size_t size)
+{
+#if defined(_WIN32)
+  void* ptr = VirtualAlloc(at, size, MEM_COMMIT, PAGE_EXECUTE_READWRITE);
+#else
+  int map_flags = MAP_ANON | MAP_PRIVATE;
+#if defined(__APPLE__)
+  map_flags |= MAP_JIT;
+#endif
+  void* ptr = mmap(at, size, PROT_READ | PROT_WRITE | PROT_EXEC, map_flags, -1, 0);
+  if (ptr == MAP_FAILED)
+    ptr = nullptr;
+#endif
+
+  if (ptr == nullptr || (at != nullptr && ptr != at))
+    PanicAlertFmt("Failed to allocate executable memory");
+
+  return ptr;
+}
 // This function is used to provide a counter for the JITPageWrite*Execute*
 // functions to enable nesting. The static variable is wrapped in a a function
 // to allow those functions to be called inside of the constructor of a static

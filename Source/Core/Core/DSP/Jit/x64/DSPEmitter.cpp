@@ -34,7 +34,7 @@ DSPEmitter::DSPEmitter(DSPCore& dsp)
       m_block_size(MAX_BLOCKS), m_block_links(MAX_BLOCKS), m_dsp_core{dsp}
 {
   x64::InitInstructionTables();
-  AllocCodeSpace(COMPILED_CODE_SIZE);
+  AllocCodeSpace(nullptr, COMPILED_CODE_SIZE);
 
   CompileDispatcher();
   m_stub_entry_point = CompileStub();

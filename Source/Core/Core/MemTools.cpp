@@ -304,6 +304,10 @@ static void sigsegv_handler(int sig, siginfo_t* info, void* raw_context)
     {
       old_sa = &old_sa_segv;
     }
+    else if (sig == SIGTRAP)
+    {
+      old_sa = &old_sa_trap;
+    }
     else
     {
       old_sa = &old_sa_bus;

@@ -49,11 +49,11 @@ public:
   CodeBlock& operator=(CodeBlock&&) = delete;
 
   // Call this before you generate any code.
-  void AllocCodeSpace(size_t size)
+  void AllocCodeSpace(void *at, size_t size)
   {
     region_size = size;
     total_region_size = size;
-    region = static_cast<u8*>(Common::AllocateExecutableMemory(total_region_size));
+    region = static_cast<u8*>(Common::AllocateExecutableMemoryAt(at, total_region_size));
     T::SetCodePtr(region, region + size);
   }
 

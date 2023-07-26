@@ -138,6 +138,28 @@ bool Jit64::HandleFault(uintptr_t access_address, SContext* ctx, bool trap)
   }
 
   auto& memory = m_system.GetMemory();
+
+  // This generates some fairly heavy trampolines, but it doesn't really hurt.
+  // Only instructions that access I/O will get these, and there won't be that
+  // many of them in a typical program/game.
+
+
+  if (memory.IsAddressInFastmemArea(reinterpret_cast<u8*>(access_address)))
+  {
+    auto& ppc_state = m_system.GetPPCState();
+    const uintptr_t memory_base = reinterpret_cast<uintptr_t>(
+        ppc_state.msr.DR ? memory.GetLogicalBase() : memory.GetPhysicalBase());
+
+    if (access_address < memory_base || access_address >= memory_base + 0x1'0000'0000)
+    {
+      WARN_LOG_FMT(DYNA_REC,
+                   "Jit64 address calculation overflowed! Please report if this happens a lot. "
+                   "PC {:#018x}, access address {:#018x}, memory base {:#018x}, MSR.DR {}",
+                   ctx->CTX_PC, access_address, memory_base, ppc_state.msr.DR);
+    }
+
+    return BackPatch(ctx);
+  }
 //    fprintf(stderr, "YO %p %d %d\n", (void*)ctx->CTX_PC, (int)((u64)ctx->CTX_PC >= (u64)(0x80000000  << PPCSHIFT)), (int)((u64)ctx->CTX_PC <= ((u64)0xFFFFFFFFC)));
   if ((u64)ctx->CTX_PC >= (u64)((u64)0x80000000  << PPCSHIFT) && (u64)ctx->CTX_PC <= ((u64)0xFFFFFFFF << PPCSHIFT))
   {
@@ -175,28 +197,6 @@ bool Jit64::HandleFault(uintptr_t access_address, SContext* ctx, bool trap)
     /*ctx->CTX_PC = (u64)*///Jit(ctx->CTX_PC >> PPCSHIFT);
     ctx->CTX_PC = jii;
     return true;
-  }
-
-  // This generates some fairly heavy trampolines, but it doesn't really hurt.
-  // Only instructions that access I/O will get these, and there won't be that
-  // many of them in a typical program/game.
-
-
-  if (memory.IsAddressInFastmemArea(reinterpret_cast<u8*>(access_address)))
-  {
-    auto& ppc_state = m_system.GetPPCState();
-    const uintptr_t memory_base = reinterpret_cast<uintptr_t>(
-        ppc_state.msr.DR ? memory.GetLogicalBase() : memory.GetPhysicalBase());
-
-    if (access_address < memory_base || access_address >= memory_base + 0x1'0000'0000)
-    {
-      WARN_LOG_FMT(DYNA_REC,
-                   "Jit64 address calculation overflowed! Please report if this happens a lot. "
-                   "PC {:#018x}, access address {:#018x}, memory base {:#018x}, MSR.DR {}",
-                   ctx->CTX_PC, access_address, memory_base, ppc_state.msr.DR);
-    }
-
-    return BackPatch(ctx);
   }
 
    fprintf(stderr, "FAIL\n");
@@ -313,7 +313,7 @@ void Jit64::Init()
   const size_t trampolines_size = jo.memcheck ? TRAMPOLINE_CODE_SIZE_MMU : TRAMPOLINE_CODE_SIZE;
   const size_t farcode_size = jo.memcheck ? FARCODE_SIZE_MMU : FARCODE_SIZE;
   const size_t constpool_size = m_const_pool.CONST_POOL_SIZE;
-  AllocCodeSpace(CODE_SIZE + routines_size + trampolines_size + farcode_size + constpool_size);
+  AllocCodeSpace((void*)(((u64)0x80000000 << PPCSHIFT) - (CODE_SIZE + routines_size + trampolines_size + farcode_size + constpool_size + 0x1000)), CODE_SIZE + routines_size + trampolines_size + farcode_size + constpool_size);
   AddChildCodeSpace(&asm_routines, routines_size);
   AddChildCodeSpace(&trampolines, trampolines_size);
   AddChildCodeSpace(&m_far_code, farcode_size);
@@ -1221,8 +1221,18 @@ u8* Jit64::DoJit(u32 em_address, JitBlock* b, u32 nextPC)
   em_address = 0x80000000 | (em_address & 0xFFFFFFFF);
 //    fprintf(stderr, "UARGELE: %p %p\n", (u8*)((u64)em_address << PPCSHIFT), (u8*)(((u64)em_address << PPCSHIFT) + 12));
   XEmitter emitter((u8*)((u64)em_address << PPCSHIFT), ((u8*)((u64)em_address << PPCSHIFT) + 12));
-  emitter.MOV(64, R(RSCRATCH), ImmPtr(b->normalEntry));
-  emitter.JMPptr(R(RSCRATCH));
+
+  s64 distance = (s64)(b->normalEntry - ((u64)((u64)em_address << PPCSHIFT) + 5));
+
+  if (distance >= -0x80000000LL && distance < 0x80000000LL)
+  {
+    emitter.JMP(b->normalEntry, Jump::Near);
+  }
+  else
+  {
+    emitter.MOV(64, R(RSCRATCH), ImmPtr(b->normalEntry));
+    emitter.JMPptr(R(RSCRATCH));
+  }
   return b->normalEntry;
 }
 
