@@ -46,8 +46,6 @@
 #include "Core/PowerPC/Profiler.h"
 #include "Core/System.h"
 
-#include "VideoCommon/TextureCacheBase.h"
-
 using namespace Gen;
 using namespace PowerPC;
 
@@ -135,15 +133,6 @@ bool Jit64::HandleFault(uintptr_t access_address, SContext* ctx)
     return HandleStackFault();
   }
 
-  if (!Core::IsCPUThread())
-  {
-     if (g_texture_cache->CheckTextureMemory(access_address))
-    {
-      return true;
-    }
-    return false;
-  }
-
   // This generates some fairly heavy trampolines, but it doesn't really hurt.
   // Only instructions that access I/O will get these, and there won't be that
   // many of them in a typical program/game.
@@ -165,11 +154,6 @@ bool Jit64::HandleFault(uintptr_t access_address, SContext* ctx)
     }
 
     return BackPatch(ctx);
-  }
-
-  if (g_texture_cache->CheckTextureMemory(access_address))
-  {
-      return true;
   }
 
   return false;

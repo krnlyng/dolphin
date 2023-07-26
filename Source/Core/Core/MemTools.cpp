@@ -274,7 +274,6 @@ static void sigsegv_handler(int sig, siginfo_t* info, void* raw_context)
     // Huh? Return.
     return;
   }
-
   uintptr_t bad_address = (uintptr_t)info->si_addr;
 
 // Get all the information we can out of the context.

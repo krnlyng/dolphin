@@ -29,8 +29,6 @@
 #include "Core/PowerPC/Profiler.h"
 #include "Core/System.h"
 
-#include "VideoCommon/TextureCacheBase.h"
-
 using namespace Arm64Gen;
 
 constexpr size_t CODE_SIZE = 1024 * 1024 * 32;
@@ -101,24 +99,17 @@ void JitArm64::SetOptimizationEnabled(bool enabled)
 bool JitArm64::HandleFault(uintptr_t access_address, SContext* ctx)
 {
   // Ifdef this since the exception handler runs on a separate thread on macOS (ARM)
-//#if 0
-  bool success = false;
 #if !(defined(__APPLE__) && defined(_M_ARM_64))
   // We can't handle any fault from other threads.
   if (!Core::IsCPUThread())
   {
-
-  if (!success && g_texture_cache->CheckTextureMemory(access_address))
-  {
-    success = true;
+    ERROR_LOG_FMT(DYNA_REC, "Exception handler - Not on CPU thread");
+    DoBacktrace(access_address, ctx);
+    return false;
   }
-//    ERROR_LOG_FMT(DYNA_REC, "Exception handler - Not on CPU thread");
-//    DoBacktrace(access_address, ctx);
-//    return false;
-  }
-//#endif
 #endif
 
+  bool success = false;
 
   // Handle BLR stack faults, may happen in C++ code.
   const uintptr_t stack_guard = reinterpret_cast<uintptr_t>(m_stack_guard);
@@ -149,11 +140,6 @@ bool JitArm64::HandleFault(uintptr_t access_address, SContext* ctx)
         success = HandleFastmemFault(ctx);
       }
     }
-  }
-
-  if (!success && g_texture_cache->CheckTextureMemory(access_address))
-  {
-    success = true;
   }
 
   if (!success)
