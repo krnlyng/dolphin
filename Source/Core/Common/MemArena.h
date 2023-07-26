@@ -74,6 +74,7 @@ public:
   /// @return Pointer to the memory region, or nullptr on failure.
   ///
   u8* ReserveMemoryRegion(size_t memory_size);
+  u8* ReserveMemoryRegionAt(void *at, size_t memory_size);
 
   ///
   /// Release the memory region previously reserved with ReserveMemoryRegion().

@@ -21,6 +21,7 @@
 
 #include <rangeset/rangesizeset.h>
 
+#include "Common/MemArena.h"
 #include "Common/CommonTypes.h"
 #include "Common/x64ABI.h"
 #include "Common/x64Emitter.h"
@@ -53,7 +54,7 @@ public:
   void Init() override;
   void Shutdown() override;
 
-  bool HandleFault(uintptr_t access_address, SContext* ctx) override;
+  bool HandleFault(uintptr_t access_address, SContext* ctx, bool trap) override;
   bool BackPatch(SContext* ctx);
 
   void EnableOptimization();
@@ -278,6 +279,8 @@ private:
   const bool m_im_here_debug = false;
   const bool m_im_here_log = false;
   std::map<u32, int> m_been_here;
+  Common::MemArena m_arena;
+  Common::MemArena m_arena2;
 };
 
 void LogGeneratedX86(size_t size, const PPCAnalyst::CodeBuffer& code_buffer, const u8* normalEntry,

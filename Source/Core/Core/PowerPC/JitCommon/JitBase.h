@@ -17,6 +17,8 @@
 #include "Core/PowerPC/JitCommon/JitCache.h"
 #include "Core/PowerPC/PPCAnalyst.h"
 
+#define PPCSHIFT 4
+
 namespace Core
 {
 class System;
@@ -188,7 +190,7 @@ public:
 
   virtual const CommonAsmRoutinesBase* GetAsmRoutines() = 0;
 
-  virtual bool HandleFault(uintptr_t access_address, SContext* ctx) = 0;
+  virtual bool HandleFault(uintptr_t access_address, SContext* ctx, bool trap) = 0;
   bool HandleStackFault();
 
   static constexpr std::size_t code_buffer_size = 32000;

@@ -106,7 +106,7 @@ u8* CachedInterpreter::GetCodePtr()
 
 void CachedInterpreter::ExecuteOneBlock()
 {
-  const u8* normal_entry = m_block_cache.Dispatch();
+  const u8* normal_entry = m_block_cache.Dispatch(0, 0);
   if (!normal_entry)
   {
     Jit(m_ppc_state.pc);

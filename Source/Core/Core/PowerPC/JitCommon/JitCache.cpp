@@ -222,15 +222,14 @@ JitBlock* JitBaseBlockCache::GetBlockFromStartAddress(u32 addr, u32 msr)
   return nullptr;
 }
 
-const u8* JitBaseBlockCache::Dispatch()
+const u8* JitBaseBlockCache::Dispatch(u32 addr, u32 msr)
 {
-  const auto& ppc_state = m_jit.m_ppc_state;
-  JitBlock* block = m_fast_block_map_ptr[FastLookupIndexForAddress(ppc_state.pc, ppc_state.msr.Hex)];
+  JitBlock* block = m_fast_block_map_ptr[FastLookupIndexForAddress(addr, msr)];
 
-  if (!block || block->effectiveAddress != ppc_state.pc ||
-      block->msrBits != (ppc_state.msr.Hex & JIT_CACHE_MSR_MASK))
+  if (!block || block->effectiveAddress != addr ||
+      block->msrBits != (msr & JIT_CACHE_MSR_MASK))
   {
-    block = MoveBlockIntoFastCache(ppc_state.pc, ppc_state.msr.Hex & JIT_CACHE_MSR_MASK);
+    block = MoveBlockIntoFastCache(addr, msr);
   }
 
   if (!block)

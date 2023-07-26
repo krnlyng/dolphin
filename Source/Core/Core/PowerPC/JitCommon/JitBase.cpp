@@ -52,7 +52,7 @@
 
 const u8* JitBase::Dispatch(JitBase& jit)
 {
-  return jit.GetBlockCache()->Dispatch();
+  return jit.GetBlockCache()->Dispatch(jit.m_ppc_state.pc, jit.m_ppc_state.msr.Hex);
 }
 
 u8* JitTrampoline(JitBase& jit, u32 em_address)

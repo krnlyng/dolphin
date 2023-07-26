@@ -164,7 +164,7 @@ public:
   // counter. This will JIT code if necessary. (This is the reference
   // implementation; high-performance JITs will want to use a custom
   // assembly version.)
-  const u8* Dispatch();
+  const u8* Dispatch(u32 addr, u32 msr);
 
   void InvalidateICache(u32 address, u32 length, bool forced);
   void InvalidateICacheLine(u32 address);

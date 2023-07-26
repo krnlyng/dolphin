@@ -79,6 +79,20 @@ u8* MemArena::ReserveMemoryRegion(size_t memory_size)
   return static_cast<u8*>(base);
 }
 
+u8* MemArena::ReserveMemoryRegionAt(void *at, size_t memory_size)
+{
+  const int flags = MAP_ANON | MAP_PRIVATE | MAP_NORESERVE;
+  void* base = mmap(at, memory_size, PROT_READ | PROT_WRITE, flags, -1, 0);
+  if (base == MAP_FAILED)
+  {
+    PanicAlertFmt("Failed to map enough memory space: {}", LastStrerrorString());
+    return nullptr;
+  }
+  m_reserved_region = base;
+  m_reserved_region_size = memory_size;
+  return static_cast<u8*>(base);
+}
+
 void MemArena::ReleaseMemoryRegion()
 {
   if (m_reserved_region)

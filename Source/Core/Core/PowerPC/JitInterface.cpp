@@ -207,7 +207,7 @@ JitInterface::GetHostCode(u32 address) const
   return result;
 }
 
-bool JitInterface::HandleFault(uintptr_t access_address, SContext* ctx)
+bool JitInterface::HandleFault(uintptr_t access_address, SContext* ctx, bool trap)
 {
   // Prevent nullptr dereference on a crash with no JIT present
   if (!m_jit)
@@ -215,7 +215,7 @@ bool JitInterface::HandleFault(uintptr_t access_address, SContext* ctx)
     return false;
   }
 
-  return m_jit->HandleFault(access_address, ctx);
+  return m_jit->HandleFault(access_address, ctx, trap);
 }
 
 bool JitInterface::HandleStackFault()

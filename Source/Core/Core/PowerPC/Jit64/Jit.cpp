@@ -10,12 +10,15 @@
 #include <disasm.h>
 #include <fmt/format.h>
 
+#include <sys/mman.h>
+
 // for the PROFILER stuff
 #ifdef _WIN32
 #include <windows.h>
 #endif
 
 #include "Common/CommonTypes.h"
+#include "Common/Align.h"
 #include "Common/GekkoDisassembler.h"
 #include "Common/IOFile.h"
 #include "Common/Logging/Log.h"
@@ -123,21 +126,61 @@ Jit64::Jit64(Core::System& system) : JitBase(system), QuantizedMemoryRoutines(*t
 
 Jit64::~Jit64() = default;
 
-bool Jit64::HandleFault(uintptr_t access_address, SContext* ctx)
+bool Jit64::HandleFault(uintptr_t access_address, SContext* ctx, bool trap)
 {
+//fprintf(stderr, "pc %lx\n", (u64)ctx->CTX_PC);
   const uintptr_t stack_guard = reinterpret_cast<uintptr_t>(m_stack_guard);
   // In the trap region?
-  if (m_enable_blr_optimization && access_address >= stack_guard &&
+  if (!trap && m_enable_blr_optimization && access_address >= stack_guard &&
       access_address < stack_guard + GUARD_SIZE)
   {
     return HandleStackFault();
+  }
+
+  auto& memory = m_system.GetMemory();
+//    fprintf(stderr, "YO %p %d %d\n", (void*)ctx->CTX_PC, (int)((u64)ctx->CTX_PC >= (u64)(0x80000000  << PPCSHIFT)), (int)((u64)ctx->CTX_PC <= ((u64)0xFFFFFFFFC)));
+  if ((u64)ctx->CTX_PC >= (u64)((u64)0x80000000  << PPCSHIFT) && (u64)ctx->CTX_PC <= ((u64)0xFFFFFFFF << PPCSHIFT))
+  {
+    //fprintf(stderr, "TRAP: %d\n", (int)trap);
+    //fprintf(stderr, "YAAA:%p\n", (void*)Common::AlignDown((uintptr_t)ctx->CTX_PC, 4096));
+    if (!trap && mprotect((void*)Common::AlignDown((uintptr_t)ctx->CTX_PC, 4096), 4096, PROT_READ | PROT_EXEC | PROT_WRITE) != 0)
+    {
+      fprintf(stderr, "Couldn't mprotect %p %d %s\n", (void*)Common::AlignDown((uintptr_t)ctx->CTX_PC, 4096), errno, strerror(errno));
+    }
+    if (!trap)
+    {
+      //fprintf(stderr, "int3ing\n");
+      XEmitter emitter((u8*)Common::AlignDown((uintptr_t)ctx->CTX_PC, 4096), (u8*)Common::AlignDown((uintptr_t)ctx->CTX_PC, 4096) + 4096);
+      for (int i = 0; i < 4096; i++)
+      {
+        emitter.INT3();
+      }
+
+      //fprintf(stderr, "int3ing done\n");
+    }
+
+    auto& ppc_state = m_system.GetPPCState();
+    u64 jii = 0;
+    //jii = (u64)blocks.Dispatch((ctx->CTX_PC >> PPCSHIFT) & 0xfffffffc, (((ctx->CTX_PC >> PPCSHIFT) & 0x3) << 4));
+    if (ppc_state.msr.DR)
+    {
+        if (!jii)
+            jii = (u64)Jit((ctx->CTX_PC >> PPCSHIFT) & 0xffffffff);
+    }
+    else
+    {
+        if (!jii)
+            jii = (u64)Jit((ctx->CTX_PC >> PPCSHIFT) & 0xffffffff);
+    }
+    /*ctx->CTX_PC = (u64)*///Jit(ctx->CTX_PC >> PPCSHIFT);
+    ctx->CTX_PC = jii;
+    return true;
   }
 
   // This generates some fairly heavy trampolines, but it doesn't really hurt.
   // Only instructions that access I/O will get these, and there won't be that
   // many of them in a typical program/game.
 
-  auto& memory = m_system.GetMemory();
 
   if (memory.IsAddressInFastmemArea(reinterpret_cast<u8*>(access_address)))
   {
@@ -156,6 +199,7 @@ bool Jit64::HandleFault(uintptr_t access_address, SContext* ctx)
     return BackPatch(ctx);
   }
 
+   fprintf(stderr, "FAIL\n");
   return false;
 }
 
@@ -296,6 +340,12 @@ void Jit64::Init()
 
   ResetFreeMemoryRanges();
   m_system.GetJitInterface().UpdateMembase();
+
+  m_arena.ReserveMemoryRegionAt((void*)((u64)0x80000000 << PPCSHIFT), ((u64)(0xFFFFFFFF-0x80000000) << PPCSHIFT));
+  /*if (m_arena2.ReserveMemoryRegionAt((void*)((u64)0x00000500 << PPCSHIFT), 0x10000) != (u8*)((u64)0x00000500 << PPCSHIFT))
+  {
+    fprintf(stderr, "NOPE\n");
+  }*/
 }
 
 void Jit64::ClearCache()
@@ -424,7 +474,7 @@ void Jit64::ImHere(Jit64& jit)
     if (it->second & 1023)
       return;
   }
-  INFO_LOG_FMT(DYNA_REC, "I'm here - PC = {:08x} , LR = {:08x}", ppc_state.pc, LR(ppc_state));
+  ERROR_LOG_FMT(DYNA_REC, "I'm here - PC = {:08x} , LR = {:08x}", ppc_state.pc, LR(ppc_state));
   been_here[ppc_state.pc] = 1;
 }
 
@@ -556,6 +606,7 @@ void Jit64::JustWriteExit(u32 destination, bool bl, u32 after)
     J_CC(CC_LE, asm_routines.do_timing);
 
     linkData.exitPtrs = GetWritableCodePtr();
+//    asm_routines.EmitDispatcher(*this);
     JMP(asm_routines.dispatcher_no_timing_check, Jump::Near);
   }
 
@@ -756,7 +807,7 @@ u8* Jit64::Jit(u32 em_address, bool clear_cache_and_retry_on_failure)
   // Analyze the block, collect all instructions it is made of (including inlining,
   // if that is enabled), reorder instructions for optimal performance, and join joinable
   // instructions.
-  const u32 nextPC = analyzer.Analyze(em_address, &code_block, &m_code_buffer, block_size);
+  const u32 nextPC = analyzer.Analyze(em_address & 0xfffffffc, &code_block, &m_code_buffer, block_size);
 
   if (code_block.m_memory_exception)
   {
@@ -774,7 +825,7 @@ u8* Jit64::Jit(u32 em_address, bool clear_cache_and_retry_on_failure)
     u8* near_start = GetWritableCodePtr();
     u8* far_start = m_far_code.GetWritableCodePtr();
 
-    JitBlock* b = blocks.AllocateBlock(em_address);
+    JitBlock* b = blocks.AllocateBlock(em_address & 0xfffffffc);
     if (res = DoJit(em_address, b, nextPC))
     {
       // Code generation succeeded.
@@ -841,13 +892,14 @@ u8* Jit64::DoJit(u32 em_address, JitBlock* b, u32 nextPC)
 {
   js.firstFPInstructionFound = false;
   js.isLastInstruction = false;
-  js.blockStart = em_address;
+  js.blockStart = em_address & 0xfffffffc;
   js.fifoBytesSinceCheck = 0;
   js.mustCheckFifo = false;
   js.curBlock = b;
   js.numLoadStoreInst = 0;
   js.numFloatingPointInst = 0;
 
+//  fprintf(stderr, "JITTING: %x\n", js.blockStart);
   // TODO: Test if this or AlignCode16 make a difference from GetCodePtr
   u8* const start = AlignCode4();
   b->checkedEntry = start;
@@ -1166,6 +1218,11 @@ u8* Jit64::DoJit(u32 em_address, JitBlock* b, u32 nextPC)
   LogGeneratedX86(code_block.m_num_instructions, m_code_buffer, start, b);
 #endif
 
+  em_address = 0x80000000 | (em_address & 0xFFFFFFFF);
+//    fprintf(stderr, "UARGELE: %p %p\n", (u8*)((u64)em_address << PPCSHIFT), (u8*)(((u64)em_address << PPCSHIFT) + 12));
+  XEmitter emitter((u8*)((u64)em_address << PPCSHIFT), ((u8*)((u64)em_address << PPCSHIFT) + 12));
+  emitter.MOV(64, R(RSCRATCH), ImmPtr(b->normalEntry));
+  emitter.JMPptr(R(RSCRATCH));
   return b->normalEntry;
 }
 

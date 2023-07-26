@@ -109,7 +109,7 @@ void Jit64AsmRoutineManager::Generate()
   dispatcher_no_check = GetCodePtr();
 
   auto& memory = system.GetMemory();
-
+#if 0
   // The following is a translation of JitBaseBlockCache::Dispatch into assembly.
   const bool assembly_dispatcher = true;
   if (assembly_dispatcher)
@@ -197,6 +197,14 @@ void Jit64AsmRoutineManager::Generate()
 
     SetJumpTarget(no_block_available);
   }
+#endif
+  MOV(32, R(RSCRATCH), PPCSTATE(pc));
+  MOV(32, R(RSCRATCH2), PPCSTATE(msr));
+  OR(32, R(RSCRATCH), Imm32(0x80000000));
+  SHL(64, R(RSCRATCH), Imm8(PPCSHIFT));
+  AND(32, R(RSCRATCH2), Imm32(JitBaseBlockCache::JIT_CACHE_MSR_MASK));
+  OR(64, R(RSCRATCH), R(RSCRATCH2));
+  JMPptr(R(RSCRATCH));
 
   // We reset the stack because Jit might clear the code cache.
   // Also if we are in the middle of disabling BLR optimization on windows
@@ -211,6 +219,7 @@ void Jit64AsmRoutineManager::Generate()
   ABI_PopRegistersAndAdjustStack({}, 0);
 
   JMPptr(R(ABI_RETURN));
+  //JMPptr(R(ABI_RETURN));
 
   JMP(dispatcher_no_check, Jump::Near);
 
@@ -242,6 +251,25 @@ void Jit64AsmRoutineManager::Generate()
   Common::JitRegister::Register(enter_code, GetCodePtr(), "JIT_Loop");
 
   GenerateCommon();
+}
+
+void Jit64AsmRoutineManager::EmitDispatcher(X64CodeBlock& emitter, bool call)
+{
+  emitter.MOV(32, R(RSCRATCH), PPCSTATE(pc));
+  emitter.OR(32, R(RSCRATCH), Imm32(0x80000000));
+  emitter.MOV(32, R(RSCRATCH2), PPCSTATE(msr));
+  emitter.AND(32, R(RSCRATCH2), Imm32(JitBaseBlockCache::JIT_CACHE_MSR_MASK));
+  emitter.SHR(32, R(RSCRATCH2), Imm8(4));
+  emitter.OR(32, R(RSCRATCH), R(RSCRATCH2));
+  emitter.SHL(64, R(RSCRATCH), Imm8(PPCSHIFT));
+  if (call)
+  {
+    emitter.CALLptr(R(RSCRATCH));
+  }
+  else
+  {
+    emitter.JMPptr(R(RSCRATCH));
+  }
 }
 
 void Jit64AsmRoutineManager::ResetStack(X64CodeBlock& emitter)

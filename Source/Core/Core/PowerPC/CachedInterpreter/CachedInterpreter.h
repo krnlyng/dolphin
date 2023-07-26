@@ -23,7 +23,7 @@ public:
   void Init() override;
   void Shutdown() override;
 
-  bool HandleFault(uintptr_t access_address, SContext* ctx) override { return false; }
+  bool HandleFault(uintptr_t access_address, SContext* ctx, bool trap) override { return false; }
   void ClearCache() override;
 
   void Run() override;

@@ -68,7 +68,7 @@ public:
   std::variant<GetHostCodeError, GetHostCodeResult> GetHostCode(u32 address) const;
 
   // Memory Utilities
-  bool HandleFault(uintptr_t access_address, SContext* ctx);
+  bool HandleFault(uintptr_t access_address, SContext* ctx, bool trap);
   bool HandleStackFault();
 
   // Clearing CodeCache
