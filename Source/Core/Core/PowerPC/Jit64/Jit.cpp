@@ -140,9 +140,6 @@ bool Jit64::HandleFault(uintptr_t access_address, SContext* ctx)
   // many of them in a typical program/game.
 
   auto& memory = m_system.GetMemory();
-  auto& ppc_state = m_system.GetPPCState();
-
-//  fprintf(stderr, "MSR.DR: %d\n", (int)ppc_state.msr.DR);
 
   if (memory.IsAddressInFastmemArea(reinterpret_cast<u8*>(access_address)))
   {
@@ -164,12 +161,14 @@ bool Jit64::HandleFault(uintptr_t access_address, SContext* ctx)
   // hax
 //    fprintf(stderr, "HI %p\n", (void*)access_address);
   //if (MMIO::IsMMIOAddress(access_address))
-//  if ((0xFF000000 & access_address) == 0xCC000000)
+  if ((0xFF000000 & access_address) == 0xCC000000)
   {
     //fprintf(stderr, "HI\n");
     auto& memory = m_system.GetMemory();
     auto& ppc_state = m_system.GetPPCState();
-    access_address = access_address + (u64)ppc_state.mem_ptr;
+    const uintptr_t memory_base = reinterpret_cast<uintptr_t>(
+        ppc_state.msr.DR ? memory.GetLogicalBase() : memory.GetPhysicalBase());
+    access_address += memory_base;
     return BackPatch(ctx);
   }
 

@@ -56,7 +56,7 @@ void Jit64::rfi(UGeckoInstruction inst)
   AND(32, R(RSCRATCH), Imm32(mask & clearMSR13));
   OR(32, PPCSTATE(msr), R(RSCRATCH));
 
-  EmitStoreMembase(PPCSTATE(msr));
+  EmitStoreMembase(R(RSCRATCH));
 
   // NPC = SRR0;
   MOV(32, R(RSCRATCH), PPCSTATE_SRR0);
