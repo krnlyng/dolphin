@@ -46,6 +46,8 @@
 #include "Core/PowerPC/Profiler.h"
 #include "Core/System.h"
 
+#include "Core/HW/MMIO.h"
+
 using namespace Gen;
 using namespace PowerPC;
 
@@ -153,6 +155,20 @@ bool Jit64::HandleFault(uintptr_t access_address, SContext* ctx)
                    ctx->CTX_PC, access_address, memory_base, ppc_state.msr.DR);
     }
 
+    return BackPatch(ctx);
+  }
+
+  // hax
+//    fprintf(stderr, "HI %p\n", (void*)access_address);
+  //if (MMIO::IsMMIOAddress(access_address))
+  if ((0xFF000000 & access_address) == 0xCC000000)
+  {
+    //fprintf(stderr, "HI\n");
+    auto& memory = m_system.GetMemory();
+    auto& ppc_state = m_system.GetPPCState();
+    const uintptr_t memory_base = reinterpret_cast<uintptr_t>(
+        ppc_state.msr.DR ? memory.GetLogicalBase() : memory.GetPhysicalBase());
+    access_address += memory_base;
     return BackPatch(ctx);
   }
 

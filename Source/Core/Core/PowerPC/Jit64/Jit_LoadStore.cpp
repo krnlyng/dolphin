@@ -436,8 +436,16 @@ void Jit64::dcbz(UGeckoInstruction inst)
 
     // Fast path: compute full address, then zero out 32 bytes of memory.
     XORPS(XMM0, R(XMM0));
-    MOVAPS(MComplex(RMEM, RSCRATCH, SCALE_1, 0), XMM0);
-    MOVAPS(MComplex(RMEM, RSCRATCH, SCALE_1, 16), XMM0);
+    if (m_ppc_state.msr.DR)
+    {
+      MOVAPS(MScaled(RSCRATCH, SCALE_1, 0), XMM0);
+      MOVAPS(MScaled(RSCRATCH, SCALE_1, 16), XMM0);
+    }
+    else
+    {
+      MOVAPS(MComplex(RMEM, RSCRATCH, SCALE_1, 0), XMM0);
+      MOVAPS(MComplex(RMEM, RSCRATCH, SCALE_1, 16), XMM0);
+    }
 
     // Slow path: call the general-case code.
     SwitchToFarCode();
