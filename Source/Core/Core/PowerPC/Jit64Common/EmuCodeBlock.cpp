@@ -140,15 +140,7 @@ void EmuCodeBlock::UnsafeWriteRegToReg(OpArg reg_value, X64Reg reg_addr, int acc
     info->nonAtomicSwapStore = false;
   }
 
-  OpArg dest;
-  if (m_jit.m_ppc_state.msr.DR)
-  {
-    dest = MScaled(reg_addr, SCALE_1, offset);
-  }
-  else
-  {
-    dest = MComplex(RMEM, reg_addr, SCALE_1, offset);
-  }
+  OpArg dest = MComplex(RMEM, reg_addr, SCALE_1, offset);
   if (reg_value.IsImm())
   {
     if (swap)
@@ -195,38 +187,17 @@ bool EmuCodeBlock::UnsafeLoadToReg(X64Reg reg_value, OpArg opAddress, int access
       opAddress = R(reg_value);
       offset = 0;
     }
-    if (m_jit.m_ppc_state.msr.DR)
-    {
-      memOperand = MScaled(opAddress.GetSimpleReg(), SCALE_1, offset);
-    }
-    else
-    {
-      memOperand = MComplex(RMEM, opAddress.GetSimpleReg(), SCALE_1, offset);
-    }
+    memOperand = MComplex(RMEM, opAddress.GetSimpleReg(), SCALE_1, offset);
   }
   else if (opAddress.IsImm())
   {
     MOV(32, R(reg_value), Imm32((u32)(opAddress.Imm32() + offset)));
-    if (m_jit.m_ppc_state.msr.DR)
-    {
-      memOperand = MDisp(reg_value, 0);
-    }
-    else
-    {
-      memOperand = MRegSum(RMEM, reg_value);
-    }
+    memOperand = MRegSum(RMEM, reg_value);
   }
   else
   {
     MOV(32, R(reg_value), opAddress);
-    if (m_jit.m_ppc_state.msr.DR)
-    {
-      memOperand = MScaled(reg_value, SCALE_1, offset);
-    }
-    else
-    {
-      memOperand = MComplex(RMEM, reg_value, SCALE_1, offset);
-    }
+    memOperand = MComplex(RMEM, reg_value, SCALE_1, offset);
   }
 
   LoadAndSwap(accessSize, reg_value, memOperand, signExtend, info);
@@ -713,14 +684,7 @@ void EmuCodeBlock::WriteToConstRamAddress(int accessSize, OpArg arg, u32 address
   {
     arg = SwapImmediate(accessSize, arg);
     MOV(32, R(RSCRATCH), Imm32(address));
-    if (m_jit.m_ppc_state.msr.DR)
-    {
-      MOV(accessSize, MDisp(RSCRATCH, 0), arg);
-    }
-    else
-    {
-      MOV(accessSize, MRegSum(RMEM, RSCRATCH), arg);
-    }
+    MOV(accessSize, MRegSum(RMEM, RSCRATCH), arg);
     return;
   }
 
@@ -736,27 +700,9 @@ void EmuCodeBlock::WriteToConstRamAddress(int accessSize, OpArg arg, u32 address
 
   MOV(32, R(RSCRATCH2), Imm32(address));
   if (swap)
-  {
-    if (m_jit.m_ppc_state.msr.DR)
-    {
-      SwapAndStore(accessSize, MDisp(RSCRATCH2, 0), reg);
-    }
-    else
-    {
-      SwapAndStore(accessSize, MRegSum(RMEM, RSCRATCH2), reg);
-    }
-  }
+    SwapAndStore(accessSize, MRegSum(RMEM, RSCRATCH2), reg);
   else
-  {
-    if (m_jit.m_ppc_state.msr.DR)
-    {
-      MOV(accessSize, MDisp(RSCRATCH2, 0), R(reg));
-    }
-    else
-    {
-      MOV(accessSize, MRegSum(RMEM, RSCRATCH2), R(reg));
-    }
-  }
+    MOV(accessSize, MRegSum(RMEM, RSCRATCH2), R(reg));
 }
 
 void EmuCodeBlock::JitGetAndClearCAOV(bool oe)
