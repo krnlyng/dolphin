@@ -270,15 +270,18 @@ void MemoryManager::UpdateLogicalMemory(const PowerPC::BatTable& dbat_table)
             u8* base = m_logical_base + logical_address + intersection_start - translated_address;
             u32 mapped_size = intersection_end - intersection_start;
 
-            void* mapped_pointer = m_arena.MapInMemoryRegion(position, mapped_size, (u8*)logical_address);
+            void* mapped_pointer = m_arena.MapInMemoryRegion(position, mapped_size, (u8*)logical_address + intersection_start - translated_address);
             if (!mapped_pointer)
             {
               fprintf(stderr, "Fail 2 %p != %p\n", mapped_pointer, base);
-              mapped_pointer = m_arena.MapInMemoryRegion(position, mapped_size, base);
+              m_logical_mapped_entries.push_back({mapped_pointer, mapped_size});  
+//              mapped_pointer = m_arena.MapInMemoryRegion(position, mapped_size, base);
             }
             else
             {
               fprintf(stderr, "Succ 2 %p == %p\n", mapped_pointer, (u8*)logical_address);
+              m_logical_mapped_entries.push_back({mapped_pointer, mapped_size});
+//              mapped_pointer = m_arena.MapInMemoryRegion(position, mapped_size, base);
             }
 
             if (!mapped_pointer)
