@@ -201,9 +201,13 @@ void Jit64AsmRoutineManager::Generate()
   MOV(32, R(RSCRATCH), PPCSTATE(pc));
   MOV(32, R(RSCRATCH2), PPCSTATE(msr));
   OR(32, R(RSCRATCH), Imm32(0x80000000));
-  SHL(64, R(RSCRATCH), Imm8(PPCSHIFT));
+  SHL(64, R(RSCRATCH), Imm8(4));
   AND(32, R(RSCRATCH2), Imm32(JitBaseBlockCache::JIT_CACHE_MSR_MASK));
   OR(64, R(RSCRATCH), R(RSCRATCH2));
+  if (PPCSHIFT < 4)
+    SHR(64, R(RSCRATCH), Imm8(4 - PPCSHIFT));
+  else if (PPCSHIFT > 4)
+    SHL(64, R(RSCRATCH), Imm8(PPCSHIFT - 4));
   JMPptr(R(RSCRATCH));
 
   // We reset the stack because Jit might clear the code cache.
@@ -253,7 +257,7 @@ void Jit64AsmRoutineManager::Generate()
   GenerateCommon();
 }
 
-void Jit64AsmRoutineManager::EmitDispatcher(X64CodeBlock& emitter, bool call)
+u8* Jit64AsmRoutineManager::EmitDispatcher(X64CodeBlock& emitter, bool call)
 {
   emitter.MOV(32, R(RSCRATCH), PPCSTATE(pc));
   emitter.OR(32, R(RSCRATCH), Imm32(0x80000000));
@@ -264,11 +268,15 @@ void Jit64AsmRoutineManager::EmitDispatcher(X64CodeBlock& emitter, bool call)
   emitter.SHL(64, R(RSCRATCH), Imm8(PPCSHIFT));
   if (call)
   {
+    u8* exitPtr = emitter.GetWritableCodePtr();
     emitter.CALLptr(R(RSCRATCH));
+    return exitPtr;
   }
   else
   {
+    u8* exitPtr = emitter.GetWritableCodePtr();
     emitter.JMPptr(R(RSCRATCH));
+    return exitPtr;
   }
 }
 

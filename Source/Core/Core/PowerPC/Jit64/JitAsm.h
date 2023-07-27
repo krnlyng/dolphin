@@ -38,7 +38,7 @@ public:
 
   void ResetStack(Gen::X64CodeBlock& emitter);
 
-  void EmitDispatcher(Gen::X64CodeBlock& emitter, bool call);
+  u8* EmitDispatcher(Gen::X64CodeBlock& emitter, bool call);
 
 private:
   void Generate();
