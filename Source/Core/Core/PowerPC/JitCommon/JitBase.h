@@ -17,7 +17,7 @@
 #include "Core/PowerPC/JitCommon/JitCache.h"
 #include "Core/PowerPC/PPCAnalyst.h"
 
-#define PPCSHIFT 3
+#define PPCSHIFT 4
 
 namespace Core
 {
@@ -186,7 +186,7 @@ public:
   static const u8* Dispatch(JitBase& jit);
   virtual JitBaseBlockCache* GetBlockCache() = 0;
 
-  virtual u8 *Jit(u32 em_address, u64 host_pc) = 0;
+  virtual u8 *Jit(u32 em_address) = 0;
 
   virtual const CommonAsmRoutinesBase* GetAsmRoutines() = 0;
 

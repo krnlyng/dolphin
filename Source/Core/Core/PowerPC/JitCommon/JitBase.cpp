@@ -57,7 +57,7 @@ const u8* JitBase::Dispatch(JitBase& jit)
 
 u8* JitTrampoline(JitBase& jit, u32 em_address)
 {
-  return jit.Jit(em_address, 0);
+  return jit.Jit(em_address);
 }
 
 JitBase::JitBase(Core::System& system)

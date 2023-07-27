@@ -85,10 +85,7 @@ public:
   // Cannot currently be undone. Will write protect the entire code region.
   // Start over if you need to change the code (call FreeCodeSpace(), AllocCodeSpace()).
   void WriteProtect() { Common::WriteProtectMemory(region, region_size, true); }
-  void ResetCodePtr() {
-    T::SetCodePtr(region, region + region_size);
-    //fprintf(stderr, "%p -> %p\n", region, region + region_size);
-  }
+  void ResetCodePtr() { T::SetCodePtr(region, region + region_size); }
   size_t GetSpaceLeft() const
   {
     ASSERT(static_cast<size_t>(T::GetCodePtr() - region) < region_size);

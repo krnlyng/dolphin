@@ -53,14 +53,9 @@ void JitBlockCache::WriteDestroyBlock(const JitBlock& block)
   Gen::XEmitter emit2(block.normalEntry, block.normalEntry + 1);
   emit2.INT3();
 
-
-  if (block.host_pc)
-  {
-//  Gen::XEmitter emit3((u8*)(((u64)0x80000000 | block.effectiveAddress | (block.msrBits >> 4)) << PPCSHIFT), (u8*)(((u64)0x80000000 | block.effectiveAddress | (block.msrBits >> 4)) << PPCSHIFT) + 12);
-  Gen::XEmitter emit3((u8*)block.host_pc, (u8*)(block.host_pc + 12));
-//((u8*)(((u64)0x80000000 | block.effectiveAddress | (block.msrBits >> 4)) << PPCSHIFT), (u8*)(((u64)0x80000000 | block.effectiveAddress | (block.msrBits >> 4)) << PPCSHIFT) + 12);
+  Gen::XEmitter emit3((u8*)(((u64)0x80000000 | block.effectiveAddress | (block.msrBits >> 4)) << PPCSHIFT), (u8*)(((u64)0x80000000 | block.effectiveAddress | (block.msrBits >> 4)) << PPCSHIFT) + 12);
   for (int i = 0; i < 12; i++) emit3.INT3();
-  }
+
 }
 
 void JitBlockCache::Init()
@@ -73,7 +68,7 @@ void JitBlockCache::DestroyBlock(JitBlock& block)
 {
   JitBaseBlockCache::DestroyBlock(block);
 
-  if (block.near_begin != (u8*)-1 && block.near_begin != block.near_end)
+  if (block.near_begin != block.near_end)
     m_ranges_to_free_on_next_codegen_near.emplace_back(block.near_begin, block.near_end);
   if (block.far_begin != block.far_end)
     m_ranges_to_free_on_next_codegen_far.emplace_back(block.far_begin, block.far_end);
