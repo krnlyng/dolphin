@@ -128,7 +128,7 @@ Jit64::~Jit64() = default;
 
 bool Jit64::HandleFault(uintptr_t access_address, SContext* ctx, bool trap)
 {
-//fprintf(stderr, "pc %lx\n", (u64)ctx->CTX_PC);
+//fprintf(stderr, "pc %lx aa %lx\n", (u64)ctx->CTX_PC, access_address);
   const uintptr_t stack_guard = reinterpret_cast<uintptr_t>(m_stack_guard);
   // In the trap region?
   if (!trap && m_enable_blr_optimization && access_address >= stack_guard &&
@@ -142,7 +142,6 @@ bool Jit64::HandleFault(uintptr_t access_address, SContext* ctx, bool trap)
   // This generates some fairly heavy trampolines, but it doesn't really hurt.
   // Only instructions that access I/O will get these, and there won't be that
   // many of them in a typical program/game.
-
 
   if (memory.IsAddressInFastmemArea(reinterpret_cast<u8*>(access_address)))
   {
@@ -160,20 +159,31 @@ bool Jit64::HandleFault(uintptr_t access_address, SContext* ctx, bool trap)
 
     return BackPatch(ctx);
   }
-//    fprintf(stderr, "YO %p %d %d\n", (void*)ctx->CTX_PC, (int)((u64)ctx->CTX_PC >= (u64)(0x80000000  << PPCSHIFT)), (int)((u64)ctx->CTX_PC <= ((u64)0xFFFFFFFFC)));
-  if ((u64)ctx->CTX_PC >= (u64)((u64)0x80000000  << PPCSHIFT) && (u64)ctx->CTX_PC <= ((u64)0xFFFFFFFF << PPCSHIFT))
+    fprintf(stderr, "YO %p %d %d\n", (void*)ctx->CTX_PC, (int)((u64)ctx->CTX_PC >= (u64)(0x80000000  << PPCSHIFT)), (int)((u64)ctx->CTX_PC <= ((u64)0xFFFFFFFFC)));
+  if ((trap || (access_address == ctx->CTX_PC)))// && (u64)ctx->CTX_PC >= (u64)((u64)0x80000000  << PPCSHIFT) && (u64)ctx->CTX_PC <= ((u64)0xFFFFFFFF << PPCSHIFT))
   {
-    //fprintf(stderr, "TRAP: %d\n", (int)trap);
+   // fprintf(stderr, "TRAP: %d\n", (int)trap);
     //fprintf(stderr, "YAAA:%p\n", (void*)Common::AlignDown((uintptr_t)ctx->CTX_PC, 4096));
-    if (!trap && mprotect((void*)Common::AlignDown((uintptr_t)ctx->CTX_PC, 4096), 4096, PROT_READ | PROT_EXEC | PROT_WRITE) != 0)
+    int a = ((u64)ctx->CTX_PC % 4096);
+    bool twopages = false;
+    if (a >= 4096 - 12)
+    {
+      twopages = true;
+    }
+    else
+    {
+      twopages = false;
+    }
+    
+    if (!trap && mprotect((void*)Common::AlignDown((uintptr_t)ctx->CTX_PC, 4096), twopages ? 4096*2 : 4096, PROT_READ | PROT_EXEC | PROT_WRITE) != 0)
     {
       fprintf(stderr, "Couldn't mprotect %p %d %s\n", (void*)Common::AlignDown((uintptr_t)ctx->CTX_PC, 4096), errno, strerror(errno));
     }
     if (!trap)
     {
       //fprintf(stderr, "int3ing\n");
-      XEmitter emitter((u8*)Common::AlignDown((uintptr_t)ctx->CTX_PC, 4096), (u8*)Common::AlignDown((uintptr_t)ctx->CTX_PC, 4096) + 4096);
-      for (int i = 0; i < 4096; i++)
+      XEmitter emitter((u8*)Common::AlignDown((uintptr_t)ctx->CTX_PC, 4096), (u8*)(Common::AlignDown((uintptr_t)ctx->CTX_PC, 4096) + (twopages ? 4096*2 : 4096)));
+      for (int i = 0; i < (twopages ? 4096*2 : 4096); i++)
       {
         emitter.INT3();
       }
@@ -187,19 +197,20 @@ bool Jit64::HandleFault(uintptr_t access_address, SContext* ctx, bool trap)
     if (ppc_state.msr.DR)
     {
         if (!jii)
-            jii = (u64)Jit((ctx->CTX_PC >> PPCSHIFT) & 0xffffffff);
+            jii = (u64)Jit((ctx->CTX_PC >> PPCSHIFT) & 0xffffffff, trap ? ctx->CTX_PC-1 : ctx->CTX_PC);
     }
     else
     {
         if (!jii)
-            jii = (u64)Jit((ctx->CTX_PC >> PPCSHIFT) & 0xffffffff);
+            jii = (u64)Jit((ctx->CTX_PC >> PPCSHIFT) & 0xffffffff, trap ? ctx->CTX_PC-1 : ctx->CTX_PC);
     }
+   //fprintf(stderr, "ppp:%p\n", (void*)jii);
     /*ctx->CTX_PC = (u64)*///Jit(ctx->CTX_PC >> PPCSHIFT);
     ctx->CTX_PC = jii;
     return true;
   }
 
-   fprintf(stderr, "FAIL\n");
+   fprintf(stderr, "FAIL %p\n", (void*)ctx->CTX_PC);
   return false;
 }
 
@@ -207,8 +218,8 @@ bool Jit64::BackPatch(SContext* ctx)
 {
   u8* codePtr = reinterpret_cast<u8*>(ctx->CTX_PC);
 
-  if (!IsInSpace(codePtr))
-    return false;  // this will become a regular crash real soon after this
+//  if (!IsInSpace(codePtr))
+//    return false;  // this will become a regular crash real soon after this
 
   auto it = m_back_patch_info.find(codePtr);
   if (it == m_back_patch_info.end())
@@ -594,6 +605,7 @@ void Jit64::JustWriteExit(u32 destination, bool bl, u32 after)
     FixupBranch after_fixup = J(Jump::Near);
     SwitchToNearCode();
 
+//    linkData.exitPtrs = asm_routines.EmitDispatcher(*this, true);
     linkData.exitPtrs = GetWritableCodePtr();
     CALL(asm_routines.dispatcher_no_timing_check);
 
@@ -606,7 +618,7 @@ void Jit64::JustWriteExit(u32 destination, bool bl, u32 after)
     J_CC(CC_LE, asm_routines.do_timing);
 
     linkData.exitPtrs = GetWritableCodePtr();
-//    asm_routines.EmitDispatcher(*this);
+//    asm_routines.EmitDispatcher(*this, false);
     JMP(asm_routines.dispatcher_no_timing_check, Jump::Near);
   }
 
@@ -751,12 +763,12 @@ void Jit64::Trace()
                 m_ppc_state.msr.Hex, m_ppc_state.spr[8], regs, fregs);
 }
 
-u8* Jit64::Jit(u32 em_address)
+u8* Jit64::Jit(u32 em_address, u64 host_pc)
 {
-  return Jit(em_address, true);
+  return Jit(em_address, true, false, host_pc);
 }
 
-u8* Jit64::Jit(u32 em_address, bool clear_cache_and_retry_on_failure)
+u8* Jit64::Jit(u32 em_address, bool clear_cache_and_retry_on_failure, bool too_far, u64 host_pc)
 {
   u8* res = 0;
   CleanUpAfterStackFault();
@@ -804,6 +816,8 @@ u8* Jit64::Jit(u32 em_address, bool clear_cache_and_retry_on_failure)
     }
   }
 
+  if (!too_far) block_size = (1 << PPCSHIFT) >> 2;
+
   // Analyze the block, collect all instructions it is made of (including inlining,
   // if that is enabled), reorder instructions for optimal performance, and join joinable
   // instructions.
@@ -822,17 +836,18 @@ u8* Jit64::Jit(u32 em_address, bool clear_cache_and_retry_on_failure)
 
   if (SetEmitterStateToFreeCodeRegion())
   {
+    if (!too_far) SetCodePtr((u8*)host_pc, (u8*)host_pc + (1 << PPCSHIFT));
     u8* near_start = GetWritableCodePtr();
     u8* far_start = m_far_code.GetWritableCodePtr();
 
     JitBlock* b = blocks.AllocateBlock(em_address & 0xfffffffc);
-    if (res = DoJit(em_address, b, nextPC))
+    if (res = DoJit(em_address, b, nextPC, too_far, host_pc))
     {
       // Code generation succeeded.
 
       // Mark the memory regions that this code block uses as used in the local rangesets.
       u8* near_end = GetWritableCodePtr();
-      if (near_start != near_end)
+      if (too_far && near_start != near_end)
         m_free_ranges_near.erase(near_start, near_end);
       u8* far_end = m_far_code.GetWritableCodePtr();
       if (far_start != far_end)
@@ -840,7 +855,7 @@ u8* Jit64::Jit(u32 em_address, bool clear_cache_and_retry_on_failure)
 
       // Store the used memory regions in the block so we know what to mark as unused when the
       // block gets invalidated.
-      b->near_begin = near_start;
+      b->near_begin = too_far ? near_start : (u8*)-1;
       b->near_end = near_end;
       b->far_begin = far_start;
       b->far_end = far_end;
@@ -852,11 +867,12 @@ u8* Jit64::Jit(u32 em_address, bool clear_cache_and_retry_on_failure)
 
   if (clear_cache_and_retry_on_failure)
   {
+    //fprintf(stderr, "waa\n");
     // Code generation failed due to not enough free space in either the near or far code regions.
     // Clear the entire JIT cache and retry.
-    WARN_LOG_FMT(POWERPC, "flushing code caches, please report if this happens a lot");
-    ClearCache();
-    return Jit(em_address, false);
+    if (too_far) WARN_LOG_FMT(POWERPC, "flushing code caches, please report if this happens a lot");
+    if (too_far) ClearCache();
+    return Jit(em_address, false, true, host_pc);
   }
 
   PanicAlertFmtT(
@@ -888,7 +904,7 @@ bool Jit64::SetEmitterStateToFreeCodeRegion()
   return true;
 }
 
-u8* Jit64::DoJit(u32 em_address, JitBlock* b, u32 nextPC)
+u8* Jit64::DoJit(u32 em_address, JitBlock* b, u32 nextPC, bool too_far, u64 host_pc)
 {
   js.firstFPInstructionFound = false;
   js.isLastInstruction = false;
@@ -1204,7 +1220,7 @@ u8* Jit64::DoJit(u32 em_address, JitBlock* b, u32 nextPC)
   if (HasWriteFailed() || m_far_code.HasWriteFailed())
   {
     if (HasWriteFailed())
-      WARN_LOG_FMT(POWERPC, "JIT ran out of space in near code region during code generation.");
+      ERROR_LOG_FMT(POWERPC, "JIT ran out of space in near code region during code generation.");
     if (m_far_code.HasWriteFailed())
       WARN_LOG_FMT(POWERPC, "JIT ran out of space in far code region during code generation.");
 
@@ -1218,21 +1234,35 @@ u8* Jit64::DoJit(u32 em_address, JitBlock* b, u32 nextPC)
   LogGeneratedX86(code_block.m_num_instructions, m_code_buffer, start, b);
 #endif
 
-  em_address = 0x80000000 | (em_address & 0xFFFFFFFF);
-//    fprintf(stderr, "UARGELE: %p %p\n", (u8*)((u64)em_address << PPCSHIFT), (u8*)(((u64)em_address << PPCSHIFT) + 12));
-  XEmitter emitter((u8*)((u64)em_address << PPCSHIFT), ((u8*)((u64)em_address << PPCSHIFT) + 12));
+ b->host_pc = host_pc;
+if (too_far)
+{
+//  em_address = 0x80000000 | (em_address & 0xFFFFFFFF);
+    //fprintf(stderr, "UARGELE: %p %p\n", (u8*)((u64)em_address << PPCSHIFT), (u8*)(((u64)em_address << PPCSHIFT) + 12));
 
-  s64 distance = (s64)(b->normalEntry - ((u64)((u64)em_address << PPCSHIFT) + 5));
+  //XEmitter emitter((u8*)((u64)em_address << PPCSHIFT), ((u8*)((u64)em_address << PPCSHIFT) + 12));
+  XEmitter emitter((u8*)host_pc, ((u8*)host_pc + 12));
+
+//fprintf(stderr, "UARGLE: %p\n", (u8*)host_pc);
+  s64 distance = (s64)(b->normalEntry - ((u64)(host_pc) + 5));
 
   if (distance >= -0x80000000LL && distance < 0x80000000LL)
   {
+//    u8* before = (u8*)emitter.GetCodePtr();
     emitter.JMP(b->normalEntry, Jump::Near);
+//    u8* after = (u8*)emitter.GetCodePtr();
+//    fprintf(stderr, "A-B: %d\n", (u32)(after-before));
   }
   else
   {
+    u8* before = (u8*)emitter.GetCodePtr();
     emitter.MOV(64, R(RSCRATCH), ImmPtr(b->normalEntry));
     emitter.JMPptr(R(RSCRATCH));
+    u8* after = (u8*)emitter.GetCodePtr();
+    fprintf(stderr, "A-B: %d\n", (u32)(after-before));
   }
+//    return (u8*)host_pc;
+}
   return b->normalEntry;
 }
 

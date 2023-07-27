@@ -109,7 +109,7 @@ void CachedInterpreter::ExecuteOneBlock()
   const u8* normal_entry = m_block_cache.Dispatch(0, 0);
   if (!normal_entry)
   {
-    Jit(m_ppc_state.pc);
+    Jit(m_ppc_state.pc, 0);
     return;
   }
 
@@ -281,7 +281,7 @@ bool CachedInterpreter::HandleFunctionHooking(u32 address)
   });
 }
 
-u8* CachedInterpreter::Jit(u32 address)
+u8* CachedInterpreter::Jit(u32 address, u64 host_pc)
 {
   if (m_code.size() >= CODE_SIZE / sizeof(Instruction) - 0x1000 ||
       SConfig::GetInstance().bJITNoBlockCache)

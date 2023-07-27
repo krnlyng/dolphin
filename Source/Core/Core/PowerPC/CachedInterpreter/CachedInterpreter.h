@@ -29,7 +29,7 @@ public:
   void Run() override;
   void SingleStep() override;
 
-  u8* Jit(u32 address) override;
+  u8* Jit(u32 address, u64 host_pc) override;
 
   JitBaseBlockCache* GetBlockCache() override { return &m_block_cache; }
   const char* GetName() const override { return "Cached Interpreter"; }

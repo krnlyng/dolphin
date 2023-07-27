@@ -91,6 +91,7 @@ struct JitBlock : public JitBlockData
     u64 ticStart;
     u64 ticStop;
   } profile_data = {};
+  u64 host_pc;
 };
 
 typedef void (*CompiledCode)();
