@@ -126,12 +126,12 @@ Jit64::Jit64(Core::System& system) : JitBase(system), QuantizedMemoryRoutines(*t
 
 Jit64::~Jit64() = default;
 
-bool Jit64::HandleFault(uintptr_t access_address, SContext* ctx, bool trap)
+bool Jit64::HandleFault(uintptr_t access_address, SContext* ctx, bool ill)
 {
 //fprintf(stderr, "pc %lx\n", (u64)ctx->CTX_PC);
   const uintptr_t stack_guard = reinterpret_cast<uintptr_t>(m_stack_guard);
   // In the trap region?
-  if (!trap && m_enable_blr_optimization && access_address >= stack_guard &&
+  if (!ill && m_enable_blr_optimization && access_address >= stack_guard &&
       access_address < stack_guard + GUARD_SIZE)
   {
     return HandleStackFault();
@@ -161,9 +161,9 @@ bool Jit64::HandleFault(uintptr_t access_address, SContext* ctx, bool trap)
     return BackPatch(ctx);
   }
 //    fprintf(stderr, "YO %p %d %d\n", (void*)ctx->CTX_PC, (int)((u64)ctx->CTX_PC >= (u64)(0x80000000  << PPCSHIFT)), (int)((u64)ctx->CTX_PC <= ((u64)0xFFFFFFFFC)));
-  if ((trap || (access_address == ctx->CTX_PC))) //if ((u64)ctx->CTX_PC >= (u64)((u64)0x80000000  << PPCSHIFT) && (u64)ctx->CTX_PC <= ((u64)0xFFFFFFFF << PPCSHIFT))
+  if ((ill || (access_address == ctx->CTX_PC))) //if ((u64)ctx->CTX_PC >= (u64)((u64)0x80000000  << PPCSHIFT) && (u64)ctx->CTX_PC <= ((u64)0xFFFFFFFF << PPCSHIFT))
   {
-    //fprintf(stderr, "TRAP: %d\n", (int)trap);
+    //fprintf(stderr, "ILL: %d\n", (int)ill);
 //    fprintf(stderr, "YAAA:%p\n", (void*)Common::AlignDown((uintptr_t)ctx->CTX_PC, 4096));
     int a = ((u64)ctx->CTX_PC % 4096);
     bool twopages = false;
@@ -172,17 +172,17 @@ bool Jit64::HandleFault(uintptr_t access_address, SContext* ctx, bool trap)
     {
       count = 2*4096;
     }
-    if (!trap && mprotect((void*)Common::AlignDown((uintptr_t)ctx->CTX_PC, 4096), count, PROT_READ | PROT_EXEC | PROT_WRITE) != 0)
+    if (!ill && mprotect((void*)Common::AlignDown((uintptr_t)ctx->CTX_PC, 4096), count, PROT_READ | PROT_EXEC | PROT_WRITE) != 0)
     {
       fprintf(stderr, "Couldn't mprotect %p %d %s\n", (void*)Common::AlignDown((uintptr_t)ctx->CTX_PC, 4096), errno, strerror(errno));
     }
-    if (!trap)
+    if (!ill)
     {
       //fprintf(stderr, "int3ing\n");
       XEmitter emitter((u8*)Common::AlignDown((uintptr_t)ctx->CTX_PC, 4096), (u8*)Common::AlignDown((uintptr_t)ctx->CTX_PC, 4096) + count);
       for (int i = 0; i < count; i++)
       {
-        emitter.INT3();
+        emitter.UD2();
       }
 
       //fprintf(stderr, "int3ing done\n");

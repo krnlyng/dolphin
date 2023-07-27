@@ -258,12 +258,12 @@ bool IsExceptionHandlerSupported()
 #elif defined(_POSIX_VERSION) && !defined(_M_GENERIC)
 
 static struct sigaction old_sa_segv;
-static struct sigaction old_sa_trap;
+static struct sigaction old_sa_ill;
 static struct sigaction old_sa_bus;
 
 static void sigsegv_handler(int sig, siginfo_t* info, void* raw_context)
 {
-  if (sig != SIGSEGV && sig != SIGBUS && sig != SIGTRAP)
+  if (sig != SIGSEGV && sig != SIGBUS && sig != SIGILL)
   {
     // We are not interested in other signals - handle it as usual.
     return;
@@ -290,7 +290,7 @@ static void sigsegv_handler(int sig, siginfo_t* info, void* raw_context)
 #else
                                                                  ctx
 #endif
-                                                                 , sig == SIGTRAP))
+                                                                 , sig == SIGILL))
   {
     // retry and crash
     // According to the sigaction man page, if sa_flags "SA_SIGINFO" is set to the sigaction
@@ -304,9 +304,9 @@ static void sigsegv_handler(int sig, siginfo_t* info, void* raw_context)
     {
       old_sa = &old_sa_segv;
     }
-    else if (sig == SIGTRAP)
+    else if (sig == SIGILL)
     {
-      old_sa = &old_sa_trap;
+      old_sa = &old_sa_ill;
     }
     else
     {
@@ -350,7 +350,7 @@ void InstallExceptionHandler()
   sa.sa_flags = SA_SIGINFO;
   sigemptyset(&sa.sa_mask);
   sigaction(SIGSEGV, &sa, &old_sa_segv);
-  sigaction(SIGTRAP, &sa, &old_sa_trap);
+  sigaction(SIGILL, &sa, &old_sa_ill);
 #ifdef __APPLE__
   sigaction(SIGBUS, &sa, &old_sa_bus);
 #endif
@@ -365,7 +365,7 @@ void UninstallExceptionHandler()
     free(old_stack.ss_sp);
   }
   sigaction(SIGSEGV, &old_sa_segv, nullptr);
-  sigaction(SIGTRAP, &old_sa_trap, nullptr);
+  sigaction(SIGILL, &old_sa_ill, nullptr);
 #ifdef __APPLE__
   sigaction(SIGBUS, &old_sa_bus, nullptr);
 #endif

@@ -54,7 +54,7 @@ void JitBlockCache::WriteDestroyBlock(const JitBlock& block)
   emit2.INT3();
 
   Gen::XEmitter emit3((u8*)(((u64)0x80000000 | block.effectiveAddress | (block.msrBits >> 4)) << PPCSHIFT), (u8*)(((u64)0x80000000 | block.effectiveAddress | (block.msrBits >> 4)) << PPCSHIFT) + 12);
-  for (int i = 0; i < 12; i++) emit3.INT3();
+  for (int i = 0; i < 12; i++) emit3.UD2();
 
 }
 

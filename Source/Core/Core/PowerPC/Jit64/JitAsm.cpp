@@ -198,11 +198,11 @@ void Jit64AsmRoutineManager::Generate()
     SetJumpTarget(no_block_available);
   }
 #endif
-  MOV(32, R(RSCRATCH), PPCSTATE(pc));
-  OR(32, R(RSCRATCH), Imm32(0x80000000));
   MOV(32, R(RSCRATCH2), PPCSTATE(msr));
+  MOV(32, R(RSCRATCH), PPCSTATE(pc));
   if (PPCSHIFT >= 4)
   {
+    OR(32, R(RSCRATCH), Imm32(0x80000000));
     SHL(64, R(RSCRATCH), Imm8(4));
     AND(32, R(RSCRATCH2), Imm32(JitBaseBlockCache::JIT_CACHE_MSR_MASK));
   }
@@ -210,6 +210,7 @@ void Jit64AsmRoutineManager::Generate()
   {
     SHR(32, R(RSCRATCH2), Imm8(4));
     AND(32, R(RSCRATCH2), Imm32(JitBaseBlockCache::JIT_CACHE_MSR_MASK >> 4));
+    OR(32, R(RSCRATCH), Imm32(0x80000000));
   }
   OR(64, R(RSCRATCH), R(RSCRATCH2));
   if (PPCSHIFT < 4)
