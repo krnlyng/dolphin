@@ -161,19 +161,26 @@ bool Jit64::HandleFault(uintptr_t access_address, SContext* ctx, bool trap)
     return BackPatch(ctx);
   }
 //    fprintf(stderr, "YO %p %d %d\n", (void*)ctx->CTX_PC, (int)((u64)ctx->CTX_PC >= (u64)(0x80000000  << PPCSHIFT)), (int)((u64)ctx->CTX_PC <= ((u64)0xFFFFFFFFC)));
-  if ((u64)ctx->CTX_PC >= (u64)((u64)0x80000000  << PPCSHIFT) && (u64)ctx->CTX_PC <= ((u64)0xFFFFFFFF << PPCSHIFT))
+  if ((trap || (access_address == ctx->CTX_PC))) //if ((u64)ctx->CTX_PC >= (u64)((u64)0x80000000  << PPCSHIFT) && (u64)ctx->CTX_PC <= ((u64)0xFFFFFFFF << PPCSHIFT))
   {
     //fprintf(stderr, "TRAP: %d\n", (int)trap);
-    //fprintf(stderr, "YAAA:%p\n", (void*)Common::AlignDown((uintptr_t)ctx->CTX_PC, 4096));
-    if (!trap && mprotect((void*)Common::AlignDown((uintptr_t)ctx->CTX_PC, 4096), 4096, PROT_READ | PROT_EXEC | PROT_WRITE) != 0)
+//    fprintf(stderr, "YAAA:%p\n", (void*)Common::AlignDown((uintptr_t)ctx->CTX_PC, 4096));
+    int a = ((u64)ctx->CTX_PC % 4096);
+    bool twopages = false;
+    int count = 4096;
+    if (a >= 4096 - 12)
+    {
+      count = 2*4096;
+    }
+    if (!trap && mprotect((void*)Common::AlignDown((uintptr_t)ctx->CTX_PC, 4096), count, PROT_READ | PROT_EXEC | PROT_WRITE) != 0)
     {
       fprintf(stderr, "Couldn't mprotect %p %d %s\n", (void*)Common::AlignDown((uintptr_t)ctx->CTX_PC, 4096), errno, strerror(errno));
     }
     if (!trap)
     {
       //fprintf(stderr, "int3ing\n");
-      XEmitter emitter((u8*)Common::AlignDown((uintptr_t)ctx->CTX_PC, 4096), (u8*)Common::AlignDown((uintptr_t)ctx->CTX_PC, 4096) + 4096);
-      for (int i = 0; i < 4096; i++)
+      XEmitter emitter((u8*)Common::AlignDown((uintptr_t)ctx->CTX_PC, 4096), (u8*)Common::AlignDown((uintptr_t)ctx->CTX_PC, 4096) + count);
+      for (int i = 0; i < count; i++)
       {
         emitter.INT3();
       }
@@ -182,6 +189,7 @@ bool Jit64::HandleFault(uintptr_t access_address, SContext* ctx, bool trap)
     }
 
     auto& ppc_state = m_system.GetPPCState();
+#if 0
     u64 jii = 0;
     //jii = (u64)blocks.Dispatch((ctx->CTX_PC >> PPCSHIFT) & 0xfffffffc, (((ctx->CTX_PC >> PPCSHIFT) & 0x3) << 4));
     if (ppc_state.msr.DR)
@@ -194,8 +202,9 @@ bool Jit64::HandleFault(uintptr_t access_address, SContext* ctx, bool trap)
         if (!jii)
             jii = (u64)Jit((ctx->CTX_PC >> PPCSHIFT) & 0xffffffff);
     }
+#endif
     /*ctx->CTX_PC = (u64)*///Jit(ctx->CTX_PC >> PPCSHIFT);
-    ctx->CTX_PC = jii;
+    ctx->CTX_PC = (u64)asm_routines.dispatcher_jit;
     return true;
   }
 
@@ -1218,7 +1227,7 @@ u8* Jit64::DoJit(u32 em_address, JitBlock* b, u32 nextPC)
   LogGeneratedX86(code_block.m_num_instructions, m_code_buffer, start, b);
 #endif
 
-  em_address = 0x80000000 | (em_address & 0xFFFFFFFF);
+  em_address = 0x80000000 | (em_address & 0xFFFFFFFF) | ((m_ppc_state.msr.Hex & 0x30) >> 4);
 //    fprintf(stderr, "UARGELE: %p %p\n", (u8*)((u64)em_address << PPCSHIFT), (u8*)(((u64)em_address << PPCSHIFT) + 12));
   XEmitter emitter((u8*)((u64)em_address << PPCSHIFT), ((u8*)((u64)em_address << PPCSHIFT) + 12));
 

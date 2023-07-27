@@ -17,7 +17,7 @@
 #include "Core/PowerPC/JitCommon/JitCache.h"
 #include "Core/PowerPC/PPCAnalyst.h"
 
-#define PPCSHIFT 4
+#define PPCSHIFT 3
 
 namespace Core
 {
