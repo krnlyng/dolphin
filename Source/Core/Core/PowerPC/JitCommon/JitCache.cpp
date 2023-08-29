@@ -81,13 +81,13 @@ void JitBaseBlockCache::Clear()
 
   if (m_fast_block_map)
   {
-    m_block_map_arena.ReleaseView(m_fast_block_map, FAST_BLOCK_MAP_SIZE);
-    m_block_map_arena.ReleaseSHMSegment();
-    m_block_map_arena.GrabSHMSegment(FAST_BLOCK_MAP_SIZE, "dolphin-emu-jitblock");
+    m_block_map_arena.ResetSHMSegment();
   }
-
-  m_fast_block_map =
-      reinterpret_cast<JitBlock**>(m_block_map_arena.CreateView(0, FAST_BLOCK_MAP_SIZE));
+  else
+  {
+    m_fast_block_map =
+        reinterpret_cast<JitBlock**>(m_block_map_arena.CreateView(0, FAST_BLOCK_MAP_SIZE));
+  }
 
   if (m_fast_block_map)
   {

@@ -70,11 +70,18 @@ void MemArena::GrabSHMSegment(size_t size, std::string_view base_name)
   m_shm_fd = AshmemCreateFileMapping(name.c_str(), size);
   if (m_shm_fd < 0)
     NOTICE_LOG_FMT(MEMMAP, "Ashmem allocation failed");
+  m_shm_segment_size = size;
 }
 
 void MemArena::ReleaseSHMSegment()
 {
   close(m_shm_fd);
+}
+
+void MemArena::ResetSHMSegment()
+{
+  ioctl(m_shm_fd, ASHMEM_SET_SIZE, 0);
+  ioctl(m_shm_fd, ASHMEM_SET_SIZE, m_shm_segment_size);
 }
 
 void* MemArena::CreateView(s64 offset, size_t size)

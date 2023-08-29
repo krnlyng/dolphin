@@ -39,11 +39,18 @@ void MemArena::GrabSHMSegment(size_t size, std::string_view base_name)
   shm_unlink(file_name.c_str());
   if (ftruncate(m_shm_fd, size) < 0)
     ERROR_LOG_FMT(MEMMAP, "Failed to allocate low memory space");
+  m_shm_segment_size = size;
 }
 
 void MemArena::ReleaseSHMSegment()
 {
   close(m_shm_fd);
+}
+
+void MemArena::ResetSHMSegment()
+{
+  ftruncate(m_shm_fd, 0);
+  ftruncate(m_shm_fd, m_shm_segment_size);
 }
 
 void* MemArena::CreateView(s64 offset, size_t size)

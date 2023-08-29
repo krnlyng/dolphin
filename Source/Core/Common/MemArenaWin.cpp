@@ -125,6 +125,11 @@ void MemArena::ReleaseSHMSegment()
   m_memory_handle = nullptr;
 }
 
+void MemArena::ResetSHMSegment()
+{
+  abort();
+}
+
 void* MemArena::CreateView(s64 offset, size_t size)
 {
   const u64 off = static_cast<u64>(offset);

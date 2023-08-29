@@ -47,6 +47,12 @@ public:
   void ReleaseSHMSegment();
 
   ///
+  /// Reset the memory segment previously allocated with GrabSHMSegment
+  /// After this function is called the memory region will be zero initialized.
+  ///
+  void ResetSHMSegment();
+
+  ///
   /// Map a memory region in the memory segment previously allocated with GrabSHMSegment().
   ///
   /// @param offset Offset within the memory segment to map at.
@@ -119,6 +125,7 @@ private:
   int m_shm_fd = 0;
   void* m_reserved_region = nullptr;
   std::size_t m_reserved_region_size = 0;
+  std::size_t m_shm_segment_size = 0;
 #endif
 };
 
