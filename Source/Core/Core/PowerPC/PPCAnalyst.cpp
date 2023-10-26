@@ -241,8 +241,7 @@ bool PPCAnalyzer::CanSwapAdjacentOps(const CodeOp& a, const CodeOp& b) const
     return false;
   }
 
-  // For now, only integer ops are acceptable.
-  if (b_info->type != OpType::Integer)
+  if (b_info->type == OpType::System || b_info->type == OpType::SystemFP)
     return false;
 
   // Check that we have no register collisions.
@@ -258,6 +257,18 @@ bool PPCAnalyzer::CanSwapAdjacentOps(const CodeOp& a, const CodeOp& b) const
   // register collision: b outputs to one of a's outputs (overwriting it)
   if (b.regsOut & a.regsOut)
     return false;
+
+  if (b.GetFregsOut() & a.fregsIn)
+    return false;
+  // register collision: a outputs to one of b's inputs
+  if (a.GetFregsOut() & b.fregsIn)
+    return false;
+  // register collision: b outputs to one of a's outputs (overwriting it)
+  if (b.GetFregsOut() & a.GetFregsOut())
+    return false;
+
+  if (b_info->type != OpType::Integer)
+    WARN_LOG_FMT(SYMBOLS, "FRAJO non-integer swap @ {:08x}<->{:08x}", a.address, b.address);
 
   return true;
 }
