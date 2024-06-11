@@ -16,6 +16,20 @@
 
 #include <fmt/format.h>
 
+// userfaultfd
+#include <fcntl.h>
+#include <sys/syscall.h>
+#include <linux/userfaultfd.h>
+#include <unistd.h>
+// pagemap
+#include <linux/fs.h>
+
+// ioctl
+#include <sys/ioctl.h>
+
+#define FDEBUG 0
+#define FDEBUG2 0
+
 #include "Common/Align.h"
 #include "Common/Assert.h"
 #include "Common/ChunkFile.h"
@@ -102,6 +116,43 @@ TextureCacheBase::TextureCacheBase()
   HiresTexture::Init();
 
   TMEM::InvalidateAll();
+
+  m_userfaultfd = syscall(SYS_userfaultfd, O_CLOEXEC | O_NONBLOCK | UFFD_USER_MODE_ONLY);
+
+  if (m_userfaultfd < 0)
+  {
+    ERROR_LOG_FMT(VIDEO, "No userfaultfd support 1");
+    return;
+  }
+
+  struct uffdio_api uffdio_api = {0};
+  uffdio_api.api = UFFD_API;
+  uffdio_api.features = UFFD_FEATURE_WP_ASYNC;
+
+  if (ioctl(m_userfaultfd, UFFDIO_API, &uffdio_api) == -1)
+  {
+    ERROR_LOG_FMT(VIDEO, "No userfaultfd support 2");
+    close(m_userfaultfd);
+    m_userfaultfd = -1;
+    return;
+  }
+
+  if ((uffdio_api.features & UFFD_FEATURE_WP_ASYNC) != UFFD_FEATURE_WP_ASYNC)
+  {
+    ERROR_LOG_FMT(VIDEO, "No userfaultfd support 3");
+    close(m_userfaultfd);
+    m_userfaultfd = -1;
+    return;
+  }
+
+  m_pagemapfd = open("/proc/self/pagemap", O_RDONLY);
+  if (m_pagemapfd < 0)
+  {
+    ERROR_LOG_FMT(VIDEO, "No userfaultfd support 4");
+    close(m_userfaultfd);
+    m_userfaultfd = -1;
+    return;
+  }
 }
 
 void TextureCacheBase::Shutdown()
@@ -1074,6 +1125,16 @@ SamplerState TextureCacheBase::GetSamplerState(u32 index, float custom_tex_scale
   }
 
   return state;
+}
+
+int TextureCacheBase::GetUserfaultFd()
+{
+  return m_userfaultfd;
+}
+
+int TextureCacheBase::GetPagemapFd()
+{
+  return m_pagemapfd;
 }
 
 void TextureCacheBase::BindTextures(BitSet32 used_textures,
@@ -2835,6 +2896,7 @@ void TextureCacheBase::ReleaseToPool(TCacheEntry* entry)
 {
   if (!entry->texture)
     return;
+  entry->Protect(false);
   auto config = entry->texture->GetConfig();
   m_texture_pool.emplace(config,
                          TexPoolEntry(std::move(entry->texture), std::move(entry->framebuffer)));
@@ -3154,40 +3216,163 @@ int TCacheEntry::HashSampleSize() const
   return g_ActiveConfig.iSafeTextureCache_ColorSamples;
 }
 
-u64 TCacheEntry::CalculateHash() const
+bool TCacheEntry::WasModified()
 {
-  const u32 bytes_per_row = BytesPerRow();
-  const u32 hash_sample_size = HashSampleSize();
+  if (g_texture_cache->GetUserfaultFd() < 0)
+    return true;
 
-  // FIXME: textures from tmem won't get the correct hash.
   auto& system = Core::System::GetInstance();
   auto& memory = system.GetMemory();
   u8* ptr = memory.GetPointerForRange(addr, size_in_bytes);
-  if (memory_stride == bytes_per_row)
+
+  u64 pagesize = getpagesize();
+
+#define PAGE_ROUND_UP(x) ((x + (pagesize - 1)) & ~(pagesize - 1))
+#define PAGE_ROUND_DOWN(x) (((x)) & (~(pagesize - 1)))
+
+  struct page_region pr = {0};
+
+  struct pm_scan_arg scan_arg = {0};
+  scan_arg.size = sizeof(scan_arg);
+  scan_arg.vec = (u64)&pr;
+  scan_arg.vec_len = 1;
+  scan_arg.start = (u64)PAGE_ROUND_DOWN((u64)ptr);
+  scan_arg.end = (u64)PAGE_ROUND_UP((u64)(ptr + size_in_bytes));
+  scan_arg.max_pages = 0;//(scan_arg.end - scan_arg.start) / pagesize;
+  scan_arg.flags = 0;
+  scan_arg.category_mask = PAGE_IS_WRITTEN;
+  scan_arg.return_mask = PAGE_IS_WRITTEN;
+
+  if (ioctl(g_texture_cache->GetPagemapFd(), PAGEMAP_SCAN, &scan_arg) < 0) {
+    ERROR_LOG_FMT(VIDEO, "Pagemap scan failed");
+  }
+
+#if FDEBUG
+  if (pr.categories & PAGE_IS_WRITTEN)
   {
-    return Common::GetHash64(ptr, size_in_bytes, hash_sample_size);
+    ERROR_LOG_FMT(VIDEO, "Found page which was written to!");
   }
   else
   {
-    const u32 num_blocks_y = NumBlocksY();
-    u64 temp_hash = size_in_bytes;
+    //ERROR_LOG_FMT(VIDEO, "Found page which was NOT written to!");
+  }
+#endif
+  return (pr.categories & PAGE_IS_WRITTEN);
+}
 
-    u32 samples_per_row = 0;
-    if (hash_sample_size != 0)
+void TCacheEntry::Protect(bool prot)
+{
+  if (g_texture_cache->GetUserfaultFd() < 0)
+    return;
+
+  m_protection_started = prot;
+  auto& system = Core::System::GetInstance();
+  auto& memory = system.GetMemory();
+  u8* ptr = memory.GetPointerForRange(addr, size_in_bytes);
+  u64 pagesize = getpagesize();
+
+  if (prot)
+  {
+    struct uffdio_register uffdio_register;
+    uffdio_register.range.start = PAGE_ROUND_DOWN((u64)ptr);
+    uffdio_register.range.len = PAGE_ROUND_UP((u64)size_in_bytes);
+    uffdio_register.mode = UFFDIO_REGISTER_MODE_WP;
+    if (ioctl(g_texture_cache->GetUserfaultFd(), UFFDIO_REGISTER, &uffdio_register))
     {
-      // Hash at least 4 samples per row to avoid hashing in a bad pattern, like just on the left
-      // side of the efb copy
-      samples_per_row = std::max(hash_sample_size / num_blocks_y, 4u);
+      ERROR_LOG_FMT(VIDEO, "Failed to register for userfaultfd wp");
     }
 
-    for (u32 i = 0; i < num_blocks_y; i++)
+    struct uffdio_writeprotect prms = {0};
+    prms.range.start = PAGE_ROUND_DOWN((u64)ptr);
+    prms.range.len = PAGE_ROUND_UP((u64)size_in_bytes);
+    prms.mode = UFFDIO_WRITEPROTECT_MODE_WP;
+    if (ioctl(g_texture_cache->GetUserfaultFd(), UFFDIO_WRITEPROTECT, &prms) < 0)
     {
-      // Multiply by a prime number to mix the hash up a bit. This prevents identical blocks from
-      // canceling each other out
-      temp_hash = (temp_hash * 397) ^ Common::GetHash64(ptr, bytes_per_row, samples_per_row);
-      ptr += memory_stride;
+      ERROR_LOG_FMT(VIDEO, "Failed to set protection to {}, {}", prot, errno);
     }
-    return temp_hash;
+#if FDEBUG2
+    else
+    {
+      ERROR_LOG_FMT(VIDEO, "Protected a page");
+    }
+#endif
+  }
+
+#if 0
+  struct pm_scan_arg scan_arg = {0};
+  scan_arg.size = sizeof(scan_arg);
+  scan_arg.start = (u64)PAGE_ROUND_DOWN((u64)ptr);
+  scan_arg.end = (u64)PAGE_ROUND_UP((u64)(ptr + size_in_bytes));
+  scan_arg.max_pages = 0;//(scan_arg.end - scan_arg.start) / pagesize;
+  scan_arg.flags = PM_SCAN_WP_MATCHING | PM_SCAN_CHECK_WPASYNC;
+  scan_arg.category_mask = PAGE_IS_WRITTEN;
+  scan_arg.return_mask = PAGE_IS_WRITTEN;
+  if (ioctl(g_texture_cache->GetPagemapFd(), PAGEMAP_SCAN, &scan_arg) < 0)
+  {
+    ERROR_LOG_FMT(VIDEO, "Failed to set protection to {}, {} pagemap ioctl", prot, errno);
+  }
+#endif
+
+  if (!prot)
+  {
+    struct uffdio_register uffdio_register;
+    uffdio_register.range.start = PAGE_ROUND_DOWN((u64)ptr);
+    uffdio_register.range.len = PAGE_ROUND_UP((u64)size_in_bytes);
+    uffdio_register.mode = UFFDIO_REGISTER_MODE_WP;
+    if (ioctl(g_texture_cache->GetUserfaultFd(), UFFDIO_UNREGISTER, &uffdio_register))
+    {
+      ERROR_LOG_FMT(VIDEO, "Failed to unregister for userfaultfd wp");
+    }
+  }
+}
+
+u64 TCacheEntry::CalculateHash()
+{
+  if (!m_protection_started || WasModified())
+  {
+    const u32 bytes_per_row = BytesPerRow();
+    const u32 hash_sample_size = HashSampleSize();
+
+    // FIXME: textures from tmem won't get the correct hash.
+    auto& system = Core::System::GetInstance();
+    auto& memory = system.GetMemory();
+    u8* ptr = memory.GetPointerForRange(addr, size_in_bytes);
+    if (memory_stride == bytes_per_row)
+    {
+      u64 h = Common::GetHash64(ptr, size_in_bytes, hash_sample_size);
+      Protect(true);
+      stored_hash = h;
+      return h;
+    }
+    else
+    {
+      const u32 num_blocks_y = NumBlocksY();
+      u64 temp_hash = size_in_bytes;
+
+      u32 samples_per_row = 0;
+      if (hash_sample_size != 0)
+      {
+        // Hash at least 4 samples per row to avoid hashing in a bad pattern, like just on the left
+        // side of the efb copy
+        samples_per_row = std::max(hash_sample_size / num_blocks_y, 4u);
+      }
+
+      for (u32 i = 0; i < num_blocks_y; i++)
+      {
+        // Multiply by a prime number to mix the hash up a bit. This prevents identical blocks from
+        // canceling each other out
+        temp_hash = (temp_hash * 397) ^ Common::GetHash64(ptr, bytes_per_row, samples_per_row);
+        ptr += memory_stride;
+      }
+
+      Protect(true);
+      stored_hash = temp_hash;
+      return temp_hash;
+    }
+  }
+  else
+  {
+    return stored_hash;
   }
 }
 

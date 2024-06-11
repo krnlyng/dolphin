@@ -126,6 +126,7 @@ struct TCacheEntry
   u32 size_in_bytes = 0;
   u64 base_hash = 0;
   u64 hash = 0;  // for paletted textures, hash = base_hash ^ palette_hash
+  u64 stored_hash = 0;
   TextureAndTLUTFormat format;
   u32 memory_stride = 0;
   bool is_efb_copy = false;
@@ -171,6 +172,8 @@ struct TCacheEntry
   std::vector<VideoCommon::CachedAsset<VideoCommon::GameTextureAsset>> linked_game_texture_assets;
   std::vector<VideoCommon::CachedAsset<VideoCommon::CustomAsset>> linked_asset_dependencies;
 
+  bool m_protection_started = false;
+
   explicit TCacheEntry(std::unique_ptr<AbstractTexture> tex,
                        std::unique_ptr<AbstractFramebuffer> fb);
 
@@ -200,6 +203,9 @@ struct TCacheEntry
     hash = _hash;
   }
 
+  bool WasModified();
+  void Protect(bool prot);
+
   // This texture entry is used by the other entry as a sub-texture
   void CreateReference(TCacheEntry* other_entry)
   {
@@ -228,7 +234,7 @@ struct TCacheEntry
   u32 NumBlocksY() const;
   u32 BytesPerRow() const;
 
-  u64 CalculateHash() const;
+  u64 CalculateHash();
 
   int HashSampleSize() const;
   u32 GetWidth() const { return texture->GetConfig().width; }
@@ -312,6 +318,9 @@ public:
   // Get a new sampler state
   static SamplerState GetSamplerState(u32 index, float custom_tex_scale, bool custom_tex,
                                       bool has_arbitrary_mips);
+
+  int GetUserfaultFd();
+  int GetPagemapFd();
 
 protected:
   // Decodes the specified data to the GPU texture specified by entry.
@@ -468,6 +477,9 @@ private:
       AfterFrameEvent::Register([this](Core::System&) { OnFrameEnd(); }, "TextureCache");
 
   VideoCommon::TextureUtils::TextureDumper m_texture_dumper;
+
+  int m_userfaultfd = -1;
+  int m_pagemapfd = -1;
 };
 
 extern std::unique_ptr<TextureCacheBase> g_texture_cache;
